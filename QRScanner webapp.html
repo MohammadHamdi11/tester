@@ -221,6 +221,28 @@ border-radius: 4px;
 padding: 0.5rem;
 background-color: white;
 }
+.student-list {
+margin-bottom: 15px;
+padding-left: 15px;
+}
+.checkbox-container {
+display: flex;
+align-items: center;
+margin: 3px 0;
+}
+.checkbox-container input[type="checkbox"] {
+margin-right: 8px;
+}
+.checklist-section-header {
+font-weight: bold;
+padding: 5px;
+background-color: #f0f0f0;
+border-radius: 4px;
+margin-top: 8px;
+position: sticky;
+top: 0;
+z-index: 1;
+}
 .student-group {
 margin-bottom: 10px;
 }
@@ -1781,6 +1803,26 @@ let studentsData = [];
 let selectedStudents = new Set();
 // Initialize checklist functionality
 function initializeChecklistModule() {
+// Ensure the checklist container has proper styling
+const style = document.createElement('style');
+style.textContent = `
+.checklist-container {
+margin-top: 1rem;
+border: 1px solid #ddd;
+border-radius: 8px;
+background-color: #f9f9f9;
+padding: 1rem;
+}
+#studentsChecklist {
+height: 300px;
+overflow-y: auto;
+border: 1px solid #ddd;
+border-radius: 4px;
+padding: 0.5rem;
+background-color: white;
+}
+`;
+document.head.appendChild(style);
 // Load students data from Excel file
 loadStudentsData();
 // Event listeners for checklist buttons
@@ -2068,6 +2110,13 @@ createNewChecklistSession(location);
 // Populate the student checklist from the loaded data
 function populateStudentChecklist() {
 studentsChecklist.innerHTML = '';
+// Create a fixed-height container div for scrolling
+studentsChecklist.style.height = '300px';
+studentsChecklist.style.overflowY = 'auto';
+studentsChecklist.style.border = '1px solid #ddd';
+studentsChecklist.style.borderRadius = '4px';
+studentsChecklist.style.padding = '0.5rem';
+studentsChecklist.style.backgroundColor = 'white';
 if (studentsData.length === 0) {
 studentsChecklist.innerHTML = '<p class="no-data-message">No student data found. Please make sure students_ids.xlsx is in the correct location.</p>';
 return;
@@ -2096,20 +2145,31 @@ sortedKeys.forEach(key => {
 const data = grouped[key];
 // Create section header
 const sectionHeader = document.createElement('div');
-sectionHeader.className = 'checklist-section-header';
+sectionHeader.style.fontWeight = 'bold';
+sectionHeader.style.padding = '5px';
+sectionHeader.style.backgroundColor = '#f0f0f0';
+sectionHeader.style.borderRadius = '4px';
+sectionHeader.style.marginTop = '8px';
+sectionHeader.style.position = 'sticky';
+sectionHeader.style.top = '0';
+sectionHeader.style.zIndex = '1';
 sectionHeader.textContent = `Year: ${data.year}, Group: ${data.group}`;
 studentsChecklist.appendChild(sectionHeader);
 // Create student checkboxes
 const studentList = document.createElement('div');
-studentList.className = 'student-list';
+studentList.style.marginBottom = '15px';
+studentList.style.paddingLeft = '15px';
 data.students.forEach(id => {
 const checkboxContainer = document.createElement('div');
-checkboxContainer.className = 'checkbox-container';
+checkboxContainer.style.display = 'flex';
+checkboxContainer.style.alignItems = 'center';
+checkboxContainer.style.margin = '3px 0';
 const checkbox = document.createElement('input');
 checkbox.type = 'checkbox';
 checkbox.id = `student_${id}`;
 checkbox.value = id;
 checkbox.dataset.id = id;
+checkbox.style.marginRight = '8px';
 const label = document.createElement('label');
 label.setAttribute('for', `student_${id}`);
 label.textContent = id;
