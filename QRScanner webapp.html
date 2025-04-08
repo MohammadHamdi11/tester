@@ -980,7 +980,12 @@ console.log("Initial auto-backup completed");
 }, 2000);
 }
 // Add beforeunload event listener to prevent accidental closing during active session
+// This only handles scanner session - checklist module handles its own separately
 window.addEventListener('beforeunload', handleBeforeUnload);
+// Initialize the checklist module if the elements exist
+if (document.getElementById('startChecklistSessionBtn')) {
+initializeChecklistModule();
+}
 });
 //================================================================================================================================
 // Load jsQR from local file
@@ -1749,6 +1754,9 @@ closeDetailsBtn.addEventListener('click', () => {
 sessionDetails.style.display = 'none';
 });
 //========================================================================================================== CHECKLIST MODULE ========//
+// Constants for checklist module
+const CHECKLIST_ACTIVE_SESSION_STORAGE_KEY = 'activeChecklistSession';
+const TEMP_CHECKLIST_SESSION_INDEX_KEY = 'tempChecklistSessionIndex';
 // DOM Elements for Checklist
 const startChecklistSessionBtn = document.getElementById('startChecklistSessionBtn');
 const endChecklistSessionBtn = document.getElementById('endChecklistSessionBtn');
@@ -1791,7 +1799,170 @@ confirmChecklistBtn.addEventListener('click', confirmChecklistSession);
 }
 // Search functionality
 studentSearchInput.addEventListener('input', filterStudents);
+// Check for recoverable checklist session
+checkForRecoverableChecklistSession();
+// Update checklist button states
+updateChecklistButtonStates();
+// Add beforeunload event listener specifically for checklist
+window.addEventListener('beforeunload', handleChecklistBeforeUnload);
 console.log("Checklist module initialized");
+}
+// Update checklist button states based on active session
+function updateChecklistButtonStates() {
+if (checklistActiveSession) {
+// When a checklist session is active
+if (startChecklistSessionBtn) startChecklistSessionBtn.disabled = true;
+if (endChecklistSessionBtn) endChecklistSessionBtn.disabled = false;
+if (addCustomEntryBtn) addCustomEntryBtn.style.display = 'inline-block';
+console.log("Checklist buttons updated for active session");
+} else {
+// When no checklist session is active
+if (startChecklistSessionBtn) startChecklistSessionBtn.disabled = false;
+if (endChecklistSessionBtn) endChecklistSessionBtn.disabled = true;
+if (addCustomEntryBtn) addCustomEntryBtn.style.display = 'none';
+console.log("Checklist buttons updated for inactive session");
+}
+}
+// Save active checklist session to local storage
+function saveActiveChecklistSession() {
+if (checklistActiveSession) {
+try {
+localStorage.setItem(CHECKLIST_ACTIVE_SESSION_STORAGE_KEY, JSON.stringify(checklistActiveSession));
+console.log("Active checklist session saved", checklistActiveSession.id, checklistActiveSession.scans.length, "selections");
+} catch (error) {
+console.error("Error saving active checklist session:", error);
+}
+}
+}
+// Clear active checklist session from local storage
+function clearActiveChecklistSession() {
+try {
+localStorage.removeItem(CHECKLIST_ACTIVE_SESSION_STORAGE_KEY);
+localStorage.removeItem(TEMP_CHECKLIST_SESSION_INDEX_KEY);
+console.log("Active checklist session cleared from storage");
+} catch (error) {
+console.error("Error clearing active checklist session:", error);
+}
+}
+// Check for a recoverable checklist session
+function checkForRecoverableChecklistSession() {
+try {
+// First check for active checklist session
+const savedActiveChecklistSession = localStorage.getItem(CHECKLIST_ACTIVE_SESSION_STORAGE_KEY);
+const tempChecklistSessionIndex = localStorage.getItem(TEMP_CHECKLIST_SESSION_INDEX_KEY);
+if (savedActiveChecklistSession) {
+const parsedSession = JSON.parse(savedActiveChecklistSession);
+if (parsedSession && parsedSession.id && parsedSession.scans && parsedSession.isChecklist) {
+const result = confirm(`Found an incomplete checklist session at ${parsedSession.location} with ${parsedSession.scans.length} selections. Would you like to recover it?`);
+if (result) {
+// Recover the checklist session
+recoverChecklistSession(parsedSession);
+} else {
+// Mark the session as completed in history if it exists there
+const sessionIndex = sessions.findIndex(s => s.id === parsedSession.id);
+if (sessionIndex !== -1) {
+sessions[sessionIndex].inProgress = false;
+saveSessionsToStorage();
+}
+// Clear the session
+clearActiveChecklistSession();
+}
+return; // Don't proceed to next check if we've handled this one
+}
+}
+// If no active session, check if there's a checklist session in progress in history
+if (tempChecklistSessionIndex !== null) {
+const index = parseInt(tempChecklistSessionIndex);
+if (!isNaN(index) && index >= 0 && index < sessions.length) {
+const tempSession = sessions[index];
+if (tempSession && tempSession.inProgress && tempSession.isChecklist) {
+const result = confirm(`Found an incomplete checklist session at ${tempSession.location} with ${tempSession.scans.length} selections in history. Would you like to recover it?`);
+if (result) {
+// Recover the session from history
+recoverChecklistSession(tempSession);
+} else {
+// Mark as completed
+sessions[index].inProgress = false;
+saveSessionsToStorage();
+localStorage.removeItem(TEMP_CHECKLIST_SESSION_INDEX_KEY);
+}
+}
+} else {
+// Invalid index for checklist, clear it
+localStorage.removeItem(TEMP_CHECKLIST_SESSION_INDEX_KEY);
+}
+}
+} catch (error) {
+console.error("Error checking for recoverable checklist session:", error);
+// Clear potentially corrupted data
+clearActiveChecklistSession();
+}
+}
+// Recover checklist session
+function recoverChecklistSession(session) {
+checklistActiveSession = session;
+// Make sure the session has inProgress flag set
+checklistActiveSession.inProgress = true;
+// Update UI
+checklistLocation.textContent = session.location;
+checklistDateTime.textContent = session.formattedDateTime;
+checklistSessionInfo.style.display = 'block';
+checklistContainer.style.display = 'block';
+// Populate the checklist with student data
+populateStudentChecklist();
+// Restore selections
+selectedStudents = new Set();
+session.scans.forEach(scan => {
+selectedStudents.add(scan.id);
+// Check the corresponding checkboxes
+const checkbox = document.getElementById(`student_${scan.id}`);
+if (checkbox) {
+checkbox.checked = true;
+}
+});
+// Update selection table
+updateSelectionTable();
+// Check if session exists in the sessions array
+const sessionIndex = sessions.findIndex(s => s.id === session.id);
+if (sessionIndex === -1) {
+// Session doesn't exist in sessions array, add it
+sessions.push(session);
+} else {
+// Update existing session
+sessions[sessionIndex] = {...session};
+}
+// Save to storage
+saveSessionsToStorage();
+saveActiveChecklistSession();
+// Store the session index for recovery
+const index = sessions.findIndex(s => s.id === session.id);
+if (index !== -1) {
+localStorage.setItem(TEMP_CHECKLIST_SESSION_INDEX_KEY, index);
+}
+// Switch to checklist tab if not already there
+const checklistTab = document.querySelector('[data-tab="checklist"]');
+const checklistContent = document.getElementById('checklist');
+if (checklistTab && checklistContent) {
+tabs.forEach(t => t.classList.remove('active'));
+tabContents.forEach(tc => tc.classList.remove('active'));
+checklistTab.classList.add('active');
+checklistContent.classList.add('active');
+}
+// Update button states
+updateChecklistButtonStates();
+console.log("Checklist session recovered successfully");
+}
+// Warn user before closing the page during active checklist session
+function handleChecklistBeforeUnload(event) {
+if (checklistActiveSession) {
+// Save one last time
+saveActiveChecklistSession();
+saveSessionsToStorage();
+// Show confirmation dialog
+const message = "You have an active checklist session. Are you sure you want to leave?";
+event.returnValue = message;
+return message;
+}
 }
 // Load students data from the Excel file
 function loadStudentsData() {
@@ -1870,11 +2041,20 @@ selectionBody.innerHTML = '';
 selectionTable.style.display = 'none';
 noSelectionsMessage.style.display = 'block';
 // Update button states
-startChecklistSessionBtn.disabled = true;
-endChecklistSessionBtn.disabled = false;
-addCustomEntryBtn.style.display = 'inline-block';
+updateChecklistButtonStates();
 // Reset selected students
 selectedStudents = new Set();
+// Save active session for recovery
+saveActiveChecklistSession();
+// Add the session to sessions array for history
+sessions.push(checklistActiveSession);
+// Save to storage
+saveSessionsToStorage();
+// Store the session index for recovery
+const index = sessions.findIndex(s => s.id === checklistActiveSession.id);
+if (index !== -1) {
+localStorage.setItem(TEMP_CHECKLIST_SESSION_INDEX_KEY, index);
+}
 console.log("New checklist session created:", sessionId);
 }
 // Confirm checklist session from modal
@@ -1959,6 +2139,8 @@ selectedStudents.delete(studentId);
 removeStudentFromSelectionTable(studentId);
 }
 }
+// Save active session with updates
+saveActiveChecklistSession();
 }
 // Add student to the selection table
 function addStudentToSelectionTable(studentId) {
@@ -1978,7 +2160,6 @@ time: now // Add full date object for proper export formatting
 checklistActiveSession.scans.push(newScan);
 // Update UI
 updateSelectionTable();
-// NOTE: Sound feedback removed as requested
 }
 // Remove student from the selection table
 function removeStudentFromSelectionTable(studentId) {
@@ -2008,6 +2189,14 @@ selectionBody.appendChild(row);
 } else {
 noSelectionsMessage.style.display = 'block';
 selectionTable.style.display = 'none';
+}
+// Save changes to storage
+saveActiveChecklistSession();
+// Update the session in the sessions array too
+const sessionIndex = sessions.findIndex(s => s.id === checklistActiveSession.id);
+if (sessionIndex !== -1) {
+sessions[sessionIndex] = {...checklistActiveSession};
+saveSessionsToStorage();
 }
 }
 // Close checklist view but keep session active
@@ -2079,25 +2268,30 @@ return;
 }
 // Save the session for export
 const sessionToExport = { ...checklistActiveSession };
-// Add the session to the main sessions array
+// Mark the session as completed in the sessions array
+const sessionIndex = sessions.findIndex(s => s.id === checklistActiveSession.id);
+if (sessionIndex !== -1) {
+sessions[sessionIndex].inProgress = false;
+} else {
+// Add the session to the main sessions array if it's not there
 sessionToExport.inProgress = false;
 sessions.push(sessionToExport);
+}
 // Save to storage
 saveSessionsToStorage();
+// Clear from local storage
+clearActiveChecklistSession();
 // Update UI - Reset all elements to pre-session state
 checklistSessionInfo.style.display = 'none';
 checklistContainer.style.display = 'none';
 selectionTable.style.display = 'none';
 selectionBody.innerHTML = '';
 noSelectionsMessage.style.display = 'none';
-// Hide custom entry button
-addCustomEntryBtn.style.display = 'none';
 // Clear active session
 checklistActiveSession = null;
 selectedStudents = new Set();
 // Update button states
-startChecklistSessionBtn.disabled = false;
-endChecklistSessionBtn.disabled = true;
+updateChecklistButtonStates();
 // Update history view
 updateHistoryView();
 // Export the session to Excel
@@ -2477,65 +2671,116 @@ alert("Error exporting file: " + error.message);
 }
 // Export all sessions to Excel
 function exportAllSessions() {
-if (sessions.length === 0) return;
+if (sessions.length === 0) {
+alert("No sessions to export");
+return;
+}
 if (!window.XLSX) {
 console.error("XLSX library not loaded");
 alert("Export functionality is not available. Please check your internet connection.");
 return;
 }
+// First, let's debug what we have
+console.log("Attempting to export all sessions:", sessions);
 const fileName = `QR_Scan_All_Sessions_${formatDateTimeForFile(new Date())}.xlsx`;
 const wb = XLSX.utils.book_new();
-// Counter for unique sheet names
-let sheetCounter = {};
-// For each session
+// First, create an "AllSessions" sheet with every scan
+const allScansData = [
+['Number', 'Student ID', 'Location', 'Date', 'Time', 'Session ID']
+];
+let globalCounter = 1;
+// Iterate through each session and add its scans to the master list
 sessions.forEach(session => {
-const data = [
-['Number', 'Student ID', 'Location', 'Log Date', 'Log Time']
+if (!session.scans || !Array.isArray(session.scans)) {
+console.warn("Session has no valid scans array:", session);
+return; // Skip this session
+}
+session.scans.forEach(scan => {
+try {
+const scanDate = new Date(scan.time);
+allScansData.push([
+globalCounter++,
+scan.content || "",
+session.location || "Unknown",
+formatDate(scanDate),
+formatTime(scanDate),
+session.id || "Unknown"
+]);
+} catch (error) {
+console.error("Error processing scan:", scan, error);
+}
+});
+});
+// Create the AllSessions sheet
+if (allScansData.length > 1) {
+try {
+const allScansSheet = XLSX.utils.aoa_to_sheet(allScansData);
+XLSX.utils.book_append_sheet(wb, allScansSheet, "AllScans");
+} catch (error) {
+console.error("Error creating AllScans sheet:", error);
+}
+}
+// Then create individual sheets for each session
+sessions.forEach((session, index) => {
+try {
+if (!session.scans || !Array.isArray(session.scans) || session.scans.length === 0) {
+console.warn("Skipping empty session:", session);
+return;
+}
+const sessionData = [
+['Number', 'Student ID', 'Location', 'Date', 'Time']
 ];
 session.scans.forEach(scan => {
+try {
 const scanDate = new Date(scan.time);
-data.push([
-scan.id,
-scan.content,
-session.location,
+sessionData.push([
+scan.id || sessionData.length,
+scan.content || "",
+session.location || "Unknown",
 formatDate(scanDate),
 formatTime(scanDate)
 ]);
-});
-if (data.length > 1) {
-const ws = XLSX.utils.aoa_to_sheet(data);
-// Create unique sheet name
-let baseSheetName = session.location.substring(0, 25).replace(/[^a-z0-9]/gi, '_');
-if (baseSheetName.length === 0) baseSheetName = "Session";
-// Ensure uniqueness
-if (sheetCounter[baseSheetName]) {
-sheetCounter[baseSheetName]++;
-baseSheetName = baseSheetName + "_" + sheetCounter[baseSheetName];
-} else {
-sheetCounter[baseSheetName] = 1;
-}
-// Excel sheet names cannot exceed 31 characters
-const sheetName = baseSheetName.substring(0, 31);
-try {
-XLSX.utils.book_append_sheet(wb, ws, sheetName);
-} catch (e) {
-console.error("Error adding sheet:", e);
-// If there's an error with this sheet, try with a generic name
-XLSX.utils.book_append_sheet(wb, ws, "Session_" + Math.random().toString(36).substring(2, 7));
-}
+} catch (error) {
+console.error("Error processing scan for session sheet:", scan, error);
 }
 });
+// Create a sheet name from location or use a default
+let sheetName = session.location 
+? session.location.substring(0, 25).replace(/[^a-z0-9]/gi, '_') 
+: "Session";
+// Ensure unique sheet name by adding index if needed
+sheetName = sheetName.substring(0, 27) + "_" + (index + 1);
+// Create and add the sheet
+const sessionSheet = XLSX.utils.aoa_to_sheet(sessionData);
+XLSX.utils.book_append_sheet(wb, sessionSheet, sheetName);
+console.log(`Added sheet for session: ${session.location} with ${session.scans.length} scans`);
+} catch (error) {
+console.error("Error creating sheet for session:", session, error);
+}
+});
+// Write the file
 try {
-// Save file locally with error handling
 XLSX.writeFile(wb, fileName);
-console.log("File written successfully:", fileName);
-// Backup to GitHub if possible
-exportExcelToGitHub(fileName, wb);
-// Also trigger a full backup of all sessions
+console.log("All sessions exported successfully to:", fileName);
+// Attempt GitHub backup
+setTimeout(() => {
+try {
+exportExcelToGitHub(fileName, wb)
+.then(() => console.log("GitHub backup complete"))
+.catch(err => console.error("GitHub backup failed:", err));
+} catch (e) {
+console.error("Error during GitHub backup:", e);
+}
+// Also trigger a full backup
+try {
 tryAutoBackup();
 } catch (e) {
-console.error("Error writing file:", e);
-alert("Error exporting file: " + e.message);
+console.error("Error during auto backup:", e);
+}
+}, 1000);
+} catch (error) {
+console.error("Error writing Excel file:", error);
+alert("Failed to export sessions: " + error.message);
 }
 }
 //========================================================================================================== HELPER FUNCTIONS ========//
