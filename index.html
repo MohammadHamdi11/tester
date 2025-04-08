@@ -1803,6 +1803,26 @@ let studentsData = [];
 let selectedStudents = new Set();
 // Initialize checklist functionality
 function initializeChecklistModule() {
+    // Ensure the checklist container has proper styling
+    const style = document.createElement('style');
+    style.textContent = `
+        .checklist-container {
+            margin-top: 1rem;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+            padding: 1rem;
+        }
+        #studentsChecklist {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 0.5rem;
+            background-color: white;
+        }
+    `;
+    document.head.appendChild(style);
 // Load students data from Excel file
 loadStudentsData();
 // Event listeners for checklist buttons
@@ -2033,51 +2053,64 @@ createNewChecklistSession(location);
 }
 // Create a new checklist session with the provided location
 function createNewChecklistSession(location) {
-if (!location) {
-alert('Please enter a location');
-return;
-}
-// Create new session
-const now = new Date();
-const sessionId = `checklist_${now.getTime()}`;
-const formattedDateTime = formatDateTime(now);
-checklistActiveSession = {
-id: sessionId,
-location: location,
-dateTime: now.toISOString(),
-formattedDateTime: formattedDateTime,
-scans: [], // Using the same structure as scanner for compatibility
-inProgress: true,
-isChecklist: true // Flag to identify checklist sessions
-};
-// Update UI
-checklistLocation.textContent = location;
-checklistDateTime.textContent = formattedDateTime;
-checklistSessionInfo.style.display = 'block';
-// Show checklist container
-checklistContainer.style.display = 'block';
-// Populate the checklist with student data
-populateStudentChecklist();
-// Clear previous results
-selectionBody.innerHTML = '';
-selectionTable.style.display = 'none';
-noSelectionsMessage.style.display = 'block';
-// Update button states
-updateChecklistButtonStates();
-// Reset selected students
-selectedStudents = new Set();
-// Save active session for recovery
-saveActiveChecklistSession();
-// Add the session to sessions array for history
-sessions.push(checklistActiveSession);
-// Save to storage
-saveSessionsToStorage();
-// Store the session index for recovery
-const index = sessions.findIndex(s => s.id === checklistActiveSession.id);
-if (index !== -1) {
-localStorage.setItem(TEMP_CHECKLIST_SESSION_INDEX_KEY, index);
-}
-console.log("New checklist session created:", sessionId);
+    if (!location) {
+        alert('Please enter a location');
+        return;
+    }
+    
+    // Create new session
+    const now = new Date();
+    const sessionId = `checklist_${now.getTime()}`;
+    const formattedDateTime = formatDateTime(now);
+    
+    checklistActiveSession = {
+        id: sessionId,
+        location: location,
+        dateTime: now.toISOString(),
+        formattedDateTime: formattedDateTime,
+        scans: [], // Using the same structure as scanner for compatibility
+        inProgress: true,
+        isChecklist: true // Flag to identify checklist sessions
+    };
+    
+    // Update UI
+    checklistLocation.textContent = location;
+    checklistDateTime.textContent = formattedDateTime;
+    checklistSessionInfo.style.display = 'block';
+    
+    // Show checklist container
+    checklistContainer.style.display = 'block';
+    
+    // Populate the checklist with student data
+    populateStudentChecklist();
+    
+    // Clear previous results
+    selectionBody.innerHTML = '';
+    selectionTable.style.display = 'none';
+    noSelectionsMessage.style.display = 'block';
+    
+    // Update button states
+    updateChecklistButtonStates();
+    
+    // Reset selected students
+    selectedStudents = new Set();
+    
+    // Save active session for recovery
+    saveActiveChecklistSession();
+    
+    // Add the session to sessions array for history
+    sessions.push(checklistActiveSession);
+    
+    // Save to storage
+    saveSessionsToStorage();
+    
+    // Store the session index for recovery
+    const index = sessions.findIndex(s => s.id === checklistActiveSession.id);
+    if (index !== -1) {
+        localStorage.setItem(TEMP_CHECKLIST_SESSION_INDEX_KEY, index);
+    }
+    
+    console.log("New checklist session created:", sessionId);
 }
 // Confirm checklist session from modal
 function confirmChecklistSession() {
@@ -2089,61 +2122,93 @@ createNewChecklistSession(location);
 }
 // Populate the student checklist from the loaded data
 function populateStudentChecklist() {
-studentsChecklist.innerHTML = '';
-if (studentsData.length === 0) {
-studentsChecklist.innerHTML = '<p class="no-data-message">No student data found. Please make sure students_ids.xlsx is in the correct location.</p>';
-return;
-}
-// Group students by year and group
-const grouped = {};
-studentsData.forEach(student => {
-const year = student.year || 'Unknown';
-const group = student.group || 'Unknown';
-const id = student.id || student['students id'] || student['student id'] || student['Student ID'];
-if (!id) return; // Skip entries without ID
-const key = `${year}_${group}`;
-if (!grouped[key]) {
-grouped[key] = {
-year: year,
-group: group,
-students: []
-};
-}
-grouped[key].students.push(id);
-});
-// Sort by year and group
-const sortedKeys = Object.keys(grouped).sort();
-// Create the HTML structure
-sortedKeys.forEach(key => {
-const data = grouped[key];
-// Create section header
-const sectionHeader = document.createElement('div');
-sectionHeader.className = 'checklist-section-header';
-sectionHeader.textContent = `Year: ${data.year}, Group: ${data.group}`;
-studentsChecklist.appendChild(sectionHeader);
-// Create student checkboxes
-const studentList = document.createElement('div');
-studentList.className = 'student-list';
-data.students.forEach(id => {
-const checkboxContainer = document.createElement('div');
-checkboxContainer.className = 'checkbox-container';
-const checkbox = document.createElement('input');
-checkbox.type = 'checkbox';
-checkbox.id = `student_${id}`;
-checkbox.value = id;
-checkbox.dataset.id = id;
-const label = document.createElement('label');
-label.setAttribute('for', `student_${id}`);
-label.textContent = id;
-checkbox.addEventListener('change', function() {
-handleStudentSelection(this);
-});
-checkboxContainer.appendChild(checkbox);
-checkboxContainer.appendChild(label);
-studentList.appendChild(checkboxContainer);
-});
-studentsChecklist.appendChild(studentList);
-});
+    studentsChecklist.innerHTML = '';
+    
+    // Create a fixed-height container div for scrolling
+    studentsChecklist.style.height = '300px';
+    studentsChecklist.style.overflowY = 'auto';
+    studentsChecklist.style.border = '1px solid #ddd';
+    studentsChecklist.style.borderRadius = '4px';
+    studentsChecklist.style.padding = '0.5rem';
+    studentsChecklist.style.backgroundColor = 'white';
+    
+    if (studentsData.length === 0) {
+        studentsChecklist.innerHTML = '<p class="no-data-message">No student data found. Please make sure students_ids.xlsx is in the correct location.</p>';
+        return;
+    }
+    
+    // Group students by year and group
+    const grouped = {};
+    studentsData.forEach(student => {
+        const year = student.year || 'Unknown';
+        const group = student.group || 'Unknown';
+        const id = student.id || student['students id'] || student['student id'] || student['Student ID'];
+        if (!id) return; // Skip entries without ID
+        
+        const key = `${year}_${group}`;
+        if (!grouped[key]) {
+            grouped[key] = {
+                year: year,
+                group: group,
+                students: []
+            };
+        }
+        grouped[key].students.push(id);
+    });
+    
+    // Sort by year and group
+    const sortedKeys = Object.keys(grouped).sort();
+    
+    // Create the HTML structure
+    sortedKeys.forEach(key => {
+        const data = grouped[key];
+        
+        // Create section header
+        const sectionHeader = document.createElement('div');
+        sectionHeader.style.fontWeight = 'bold';
+        sectionHeader.style.padding = '5px';
+        sectionHeader.style.backgroundColor = '#f0f0f0';
+        sectionHeader.style.borderRadius = '4px';
+        sectionHeader.style.marginTop = '8px';
+        sectionHeader.style.position = 'sticky';
+        sectionHeader.style.top = '0';
+        sectionHeader.style.zIndex = '1';
+        sectionHeader.textContent = `Year: ${data.year}, Group: ${data.group}`;
+        studentsChecklist.appendChild(sectionHeader);
+        
+        // Create student checkboxes
+        const studentList = document.createElement('div');
+        studentList.style.marginBottom = '15px';
+        studentList.style.paddingLeft = '15px';
+        
+        data.students.forEach(id => {
+            const checkboxContainer = document.createElement('div');
+            checkboxContainer.style.display = 'flex';
+            checkboxContainer.style.alignItems = 'center';
+            checkboxContainer.style.margin = '3px 0';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = `student_${id}`;
+            checkbox.value = id;
+            checkbox.dataset.id = id;
+            checkbox.style.marginRight = '8px';
+            
+            const label = document.createElement('label');
+            label.setAttribute('for', `student_${id}`);
+            label.textContent = id;
+            
+            checkbox.addEventListener('change', function() {
+                handleStudentSelection(this);
+            });
+            
+            checkboxContainer.appendChild(checkbox);
+            checkboxContainer.appendChild(label);
+            studentList.appendChild(checkboxContainer);
+        });
+        
+        studentsChecklist.appendChild(studentList);
+    });
 }
 // Handle student selection
 function handleStudentSelection(checkbox) {
