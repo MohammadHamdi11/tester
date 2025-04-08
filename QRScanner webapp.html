@@ -94,11 +94,32 @@ font-size: 14px;
 display: flex;
 border-bottom: 1px solid var(--border-color);
 margin-bottom: 1rem;
+overflow-x: auto; /* Enable horizontal scrolling */
+white-space: nowrap; /* Prevent tab text from wrapping */
+-webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+scrollbar-width: thin; /* For Firefox */
+padding-bottom: 4px; /* Add some padding to account for scrollbar */
+position: relative; /* For proper event handling */
+cursor: grab; /* Show grab cursor to indicate scrollable */
+}
+.tabs.active-scroll {
+cursor: grabbing; /* Change cursor when actively scrolling */
+}
+/* Hide scrollbar for Chrome, Safari and Opera */
+.tabs::-webkit-scrollbar {
+height: 4px;
+}
+/* Handle on hover */
+.tabs::-webkit-scrollbar-thumb {
+background: var(--border-color);
+border-radius: 4px;
 }
 .tab {
 padding: 0.75rem 1.5rem;
 cursor: pointer;
 border-bottom: 3px solid transparent;
+flex-shrink: 0; /* Prevent tabs from shrinking */
+user-select: none; /* Prevent text selection during drag */
 }
 .tab.active {
 border-bottom: 3px solid var(--primary-color);
@@ -302,7 +323,7 @@ margin: 10% auto;
 <div class="container">
 <div class="tabs">
 <div class="tab active" data-tab="scanner">Scanner</div>
-<div class="tab" data-tab="checklist">Checklist</div>
+<div class="tab" data-tab="checklist">Selector</div>
 <div class="tab" data-tab="history">History</div>
 <div class="tab" data-tab="backup">Backup</div>
 <div class="tab" data-tab="about">About</div>
@@ -447,13 +468,14 @@ margin: 10% auto;
 <h2>About This Application</h2>
 <div class="about-section">
 <h3>Function</h3>
-<p>This QR Code Scanner processes student QR codes for attendance tracking in educational settings.</p>
+<p>This application serves as both a QR Code Scanner and Student Selector for attendance tracking in educational settings.</p>
 <h3>Purpose</h3>
 <p>The application was developed to:</p>
 <ul>
 <li>Automate the attendance tracking process</li>
 <li>Decrease unnecessary workload from staff</li>
 <li>Provide reliable tracking and data management</li>
+<li>Enable flexible student selection methods</li>
 </ul>
 <h3>Technical Details</h3>
 <p>This is a Progressive Web Application (PWA) built using HTML, CSS, and JavaScript. This allows it to:</p>
@@ -462,6 +484,31 @@ margin: 10% auto;
 <li>Be installed on mobile devices</li>
 <li>Provide a native app-like experience</li>
 <li>Synchronize data when connectivity is restored</li>
+</ul>
+<h3>Features</h3>
+<p><strong>QR Code Scanner:</strong> Scans student QR codes for quick attendance tracking</p>
+<p><strong>Student Selector:</strong> Allows manual selection of students from organized lists</p>
+<h3>Usage Instructions</h3>
+<p>To use this application effectively:</p>
+<h4>Scanner Mode:</h4>
+<ol>
+<li>Start a new scanning session and specify the location</li>
+<li>Scan student QR codes or add entries manually</li>
+<li>End the session when complete</li>
+</ol>
+<h4>Selector Mode:</h4>
+<ol>
+<li>Start a new session and specify the location</li>
+<li>Filter students by year/group and select from the list</li>
+<li>Use the search function to quickly find specific students</li>
+<li>Add custom entries for special cases</li>
+<li>End the session when complete</li>
+</ol>
+<p><strong>For Both Modes:</strong></p>
+<ul>
+<li>Review past sessions in the History tab</li>
+<li>Backup your data regularly from the Backup tab</li>
+<li>Export data as needed for record keeping</li>
 </ul>
 <h3>Development Team</h3>
 <p>This application was developed by a medical student at Faculty of Medicine, Ain Shams University as part of ongoing efforts to integrate technological solutions into educational processes at the university.</p>
@@ -472,16 +519,6 @@ margin: 10% auto;
 <a href="mailto:mohammadhamdisaid.mh@icloud.com">Alternative Contact 1</a> | 
 <a href="mailto:mohammad_hamdi11@yahoo.com">Alternative Contact 2</a>
 </p>
-<h3>Usage Instructions</h3>
-<p>To use this application effectively:</p>
-<ol>
-<li>Start a new scanning session and specify the location</li>
-<li>Scan student QR codes or add entries manually</li>
-<li>End the session when complete</li>
-<li>Review past sessions in the History tab</li>
-<li>Backup your data regularly from the Backup tab</li>
-</ol>
-</div>
 </div>
 </div>
 </div>
@@ -1154,6 +1191,62 @@ playSuccessSound();
 }
 }
 //========================================================================================================== UI NAVIGATION & EVENT HANDLERS ========//
+// Tab scrolling functionality
+function setupTabScrolling() {
+const tabsContainer = document.querySelector('.tabs');
+if (!tabsContainer) return;
+// Variables for tracking touch/mouse events
+let isDown = false;
+let startX;
+let scrollLeft;
+// Mouse events for desktop
+tabsContainer.addEventListener('mousedown', (e) => {
+isDown = true;
+tabsContainer.classList.add('active-scroll');
+startX = e.pageX - tabsContainer.offsetLeft;
+scrollLeft = tabsContainer.scrollLeft;
+});
+tabsContainer.addEventListener('mouseleave', () => {
+isDown = false;
+tabsContainer.classList.remove('active-scroll');
+});
+tabsContainer.addEventListener('mouseup', () => {
+isDown = false;
+tabsContainer.classList.remove('active-scroll');
+});
+tabsContainer.addEventListener('mousemove', (e) => {
+if (!isDown) return;
+e.preventDefault();
+const x = e.pageX - tabsContainer.offsetLeft;
+const walk = (x - startX) * 2; // Scroll speed multiplier
+tabsContainer.scrollLeft = scrollLeft - walk;
+});
+// Touch events for mobile
+tabsContainer.addEventListener('touchstart', (e) => {
+isDown = true;
+tabsContainer.classList.add('active-scroll');
+startX = e.touches[0].pageX - tabsContainer.offsetLeft;
+scrollLeft = tabsContainer.scrollLeft;
+});
+tabsContainer.addEventListener('touchend', () => {
+isDown = false;
+tabsContainer.classList.remove('active-scroll');
+});
+tabsContainer.addEventListener('touchmove', (e) => {
+if (!isDown) return;
+const x = e.touches[0].pageX - tabsContainer.offsetLeft;
+const walk = (x - startX) * 2;
+tabsContainer.scrollLeft = scrollLeft - walk;
+});
+// Add horizontal wheel scrolling support
+tabsContainer.addEventListener('wheel', (e) => {
+if (e.deltaY !== 0) {
+e.preventDefault();
+tabsContainer.scrollLeft += e.deltaY;
+}
+}, { passive: false });
+console.log("Tab scrolling functionality initialized");
+}
 // Set up button event listeners
 function setupButtonEventListeners() {
 // Start Session Button
@@ -1166,6 +1259,8 @@ console.log("End session button handler attached");
 } else {
 console.error("End session button not found in the DOM");
 }
+// Initialize tab scrolling functionality
+setupTabScrolling();
 // Update button states based on current session status
 updateButtonStates();
 }
