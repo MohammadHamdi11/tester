@@ -94,11 +94,32 @@ font-size: 14px;
 display: flex;
 border-bottom: 1px solid var(--border-color);
 margin-bottom: 1rem;
+overflow-x: auto; /* Enable horizontal scrolling */
+white-space: nowrap; /* Prevent tab text from wrapping */
+-webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+scrollbar-width: thin; /* For Firefox */
+padding-bottom: 4px; /* Add some padding to account for scrollbar */
+position: relative; /* For proper event handling */
+cursor: grab; /* Show grab cursor to indicate scrollable */
+}
+.tabs.active-scroll {
+cursor: grabbing; /* Change cursor when actively scrolling */
+}
+/* Hide scrollbar for Chrome, Safari and Opera */
+.tabs::-webkit-scrollbar {
+height: 4px;
+}
+/* Handle on hover */
+.tabs::-webkit-scrollbar-thumb {
+background: var(--border-color);
+border-radius: 4px;
 }
 .tab {
 padding: 0.75rem 1.5rem;
 cursor: pointer;
 border-bottom: 3px solid transparent;
+flex-shrink: 0; /* Prevent tabs from shrinking */
+user-select: none; /* Prevent text selection during drag */
 }
 .tab.active {
 border-bottom: 3px solid var(--primary-color);
@@ -302,7 +323,7 @@ margin: 10% auto;
 <div class="container">
 <div class="tabs">
 <div class="tab active" data-tab="scanner">Scanner</div>
-<div class="tab" data-tab="checklist">Checklist</div>
+<div class="tab" data-tab="checklist">Selector</div>
 <div class="tab" data-tab="history">History</div>
 <div class="tab" data-tab="backup">Backup</div>
 <div class="tab" data-tab="about">About</div>
@@ -447,13 +468,14 @@ margin: 10% auto;
 <h2>About This Application</h2>
 <div class="about-section">
 <h3>Function</h3>
-<p>This QR Code Scanner processes student QR codes for attendance tracking in educational settings.</p>
+<p>This application serves as both a QR Code Scanner and Student Selector for attendance tracking in educational settings.</p>
 <h3>Purpose</h3>
 <p>The application was developed to:</p>
 <ul>
 <li>Automate the attendance tracking process</li>
 <li>Decrease unnecessary workload from staff</li>
 <li>Provide reliable tracking and data management</li>
+<li>Enable flexible student selection methods</li>
 </ul>
 <h3>Technical Details</h3>
 <p>This is a Progressive Web Application (PWA) built using HTML, CSS, and JavaScript. This allows it to:</p>
@@ -462,6 +484,31 @@ margin: 10% auto;
 <li>Be installed on mobile devices</li>
 <li>Provide a native app-like experience</li>
 <li>Synchronize data when connectivity is restored</li>
+</ul>
+<h3>Features</h3>
+<p><strong>QR Code Scanner:</strong> Scans student QR codes for quick attendance tracking</p>
+<p><strong>Student Selector:</strong> Allows manual selection of students from organized lists</p>
+<h3>Usage Instructions</h3>
+<p>To use this application effectively:</p>
+<h4>Scanner Mode:</h4>
+<ol>
+<li>Start a new scanning session and specify the location</li>
+<li>Scan student QR codes or add entries manually</li>
+<li>End the session when complete</li>
+</ol>
+<h4>Selector Mode:</h4>
+<ol>
+<li>Start a new session and specify the location</li>
+<li>Filter students by year/group and select from the list</li>
+<li>Use the search function to quickly find specific students</li>
+<li>Add custom entries for special cases</li>
+<li>End the session when complete</li>
+</ol>
+<p><strong>For Both Modes:</strong></p>
+<ul>
+<li>Review past sessions in the History tab</li>
+<li>Backup your data regularly from the Backup tab</li>
+<li>Export data as needed for record keeping</li>
 </ul>
 <h3>Development Team</h3>
 <p>This application was developed by a medical student at Faculty of Medicine, Ain Shams University as part of ongoing efforts to integrate technological solutions into educational processes at the university.</p>
@@ -472,16 +519,6 @@ margin: 10% auto;
 <a href="mailto:mohammadhamdisaid.mh@icloud.com">Alternative Contact 1</a> | 
 <a href="mailto:mohammad_hamdi11@yahoo.com">Alternative Contact 2</a>
 </p>
-<h3>Usage Instructions</h3>
-<p>To use this application effectively:</p>
-<ol>
-<li>Start a new scanning session and specify the location</li>
-<li>Scan student QR codes or add entries manually</li>
-<li>End the session when complete</li>
-<li>Review past sessions in the History tab</li>
-<li>Backup your data regularly from the Backup tab</li>
-</ol>
-</div>
 </div>
 </div>
 </div>
@@ -632,21 +669,44 @@ autoBackupStatus.style.color = '#f44336';
 }
 // Get GitHub token by combining prefix and suffix
 function getGitHubToken() {
-// First try to get from localStorage in case user manually set it
-const storedToken = localStorage.getItem(GITHUB_TOKEN_KEY);
-if (storedToken) {
-return storedToken;
+    // First try to get from localStorage in case user manually set it
+    const storedToken = localStorage.getItem(GITHUB_TOKEN_KEY);
+    if (storedToken && storedToken.trim() !== '') {
+        console.log('Using token from localStorage');
+        return storedToken.trim();
+    }
+    
+    // If no stored token, use the hardcoded one
+    console.log('Using hardcoded token');
+    // Combine parts carefully to avoid whitespace issues
+    const combinedToken = GITHUB_TOKEN_PREFIX.trim() + GITHUB_TOKEN_SUFFIX.trim();
+    
+    // Debug token without revealing actual token
+    console.log(`Token length: ${combinedToken.length}`);
+    if (combinedToken.length < 30) {
+        console.warn('Warning: Token appears to be too short or malformed');
+    }
+    
+    // Check for any suspicious spaces or control characters
+    if (/\s/.test(combinedToken)) {
+        console.warn('Warning: Token contains whitespace characters');
+    }
+    
+    return combinedToken;
 }
-// If no stored token, use the hardcoded one
-return GITHUB_TOKEN_PREFIX + GITHUB_TOKEN_SUFFIX;
-}
+
 // Save GitHub token to local storage
-function saveGitHubToken() {
+async function saveGitHubToken() {
 const token = githubTokenInput.value.trim();
 if (token) {
 try {
+tokenStatusMessage.textContent = 'Validating token...';
+tokenStatusMessage.style.color = '#ff9800'; // Orange for in-progress
+// Validate token before saving
+const isValid = await validateGitHubToken(token);
+if (isValid) {
 localStorage.setItem(GITHUB_TOKEN_KEY, token);
-tokenStatusMessage.textContent = 'Token saved successfully!';
+tokenStatusMessage.textContent = 'Token validated and saved successfully!';
 tokenStatusMessage.style.color = '#4caf50';
 // Enable auto-backup by default when token is saved
 localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, 'true');
@@ -654,9 +714,13 @@ updateConnectionStatus(); // Update status display
 setTimeout(() => {
 tokenStatusMessage.textContent = '';
 }, 3000);
+} else {
+tokenStatusMessage.textContent = 'Invalid token. Please check your token and permissions.';
+tokenStatusMessage.style.color = '#f44336';
+}
 } catch (error) {
 console.error('Error saving GitHub token:', error);
-tokenStatusMessage.textContent = 'Error saving token.';
+tokenStatusMessage.textContent = 'Error validating token: ' + error.message;
 tokenStatusMessage.style.color = '#f44336';
 }
 } else {
@@ -801,164 +865,410 @@ return false;
 }
 // Backup to GitHub
 async function backupToGitHub(isAutoBackup = false, customFileName = null, workbook = null) {
-if (!navigator.onLine) {
-if (!isAutoBackup) {
-alert('Cannot backup: You are offline.');
-}
-return;
-}
-// Get token from combined hardcoded values or localStorage
-const token = getGitHubToken();
-if (!token) {
-if (!isAutoBackup) {
-alert('No GitHub token available.');
-}
-return;
-}
-try {
-backupInProgress = true;
-if (!isAutoBackup && backupBtn) {
-backupBtn.disabled = true;
-backupBtn.textContent = 'Backing up...';
-}
-// Create filename with date if not provided
-const fileName = customFileName || `qr_scanner_backup_${formatDateTimeForFile(new Date())}.xlsx`;
-// Create workbook if not provided
-if (!workbook) {
-workbook = prepareDataForBackup();
-}
-// Convert workbook to base64
-const excelData = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
-// First, try to get the SHA of the file if it exists
-let sha = null;
-try {
-const checkResponse = await fetch(`https://api.github.com/repos/${DEFAULT_GITHUB_OWNER}/${DEFAULT_GITHUB_REPO}/contents/${DEFAULT_GITHUB_PATH}/${fileName}?ref=${DEFAULT_GITHUB_BRANCH}`, {
-method: 'GET',
-headers: {
-'Authorization': `token ${token}`,
-'Content-Type': 'application/json',
-}
-});
-if (checkResponse.ok) {
-const fileInfo = await checkResponse.json();
-sha = fileInfo.sha;
-}
-} catch (error) {
-console.log('File does not exist yet, creating new file.');
-}
-// Now create or update the file
-const requestBody = {
-message: `Backup QR Scanner data - ${new Date().toLocaleString()}`,
-content: excelData,
-branch: DEFAULT_GITHUB_BRANCH,
-};
-if (sha) {
-requestBody.sha = sha;
-}
-const response = await fetch(`https://api.github.com/repos/${DEFAULT_GITHUB_OWNER}/${DEFAULT_GITHUB_REPO}/contents/${DEFAULT_GITHUB_PATH}/${fileName}`, {
-method: 'PUT',
-headers: {
-'Authorization': `token ${token}`,
-'Content-Type': 'application/json',
-},
-body: JSON.stringify(requestBody)
-});
-if (response.ok) {
-// Update last backup time
-const now = new Date().toISOString();
-localStorage.setItem(LAST_BACKUP_TIME_KEY, now);
-localStorage.setItem(LAST_BACKUP_SESSIONS_KEY, sessions.length.toString());
-updateLastBackupTimeDisplay();
-if (!isAutoBackup) {
-alert('Backup completed successfully!');
-}
-} else {
-const errorData = await response.json();
-throw new Error(`GitHub API error: ${errorData.message}`);
-}
-} catch (error) {
-console.error('GitHub backup error:', error);
-if (!isAutoBackup) {
-alert(`Backup failed: ${error.message}`);
-}
-} finally {
-backupInProgress = false;
-if (!isAutoBackup && backupBtn) {
-backupBtn.disabled = false;
-backupBtn.textContent = 'Backup Now';
-}
-}
+    if (!navigator.onLine) {
+        if (!isAutoBackup) {
+            alert('Cannot backup: You are offline.');
+        }
+        return;
+    }
+    
+    // Get token from combined hardcoded values or localStorage
+    const token = getGitHubToken();
+    if (!token) {
+        if (!isAutoBackup) {
+            alert('No GitHub token available.');
+        }
+        return;
+    }
+    
+    try {
+        backupInProgress = true;
+        if (!isAutoBackup && backupBtn) {
+            backupBtn.disabled = true;
+            backupBtn.textContent = 'Backing up...';
+        }
+        
+        // Create filename with date if not provided
+        const fileName = customFileName || `qr_scanner_backup_${formatDateTimeForFile(new Date())}.xlsx`;
+        
+        // Create workbook if not provided
+        if (!workbook) {
+            workbook = prepareDataForBackup();
+        }
+        
+        // Convert workbook to base64
+        const excelData = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
+        
+        // Repository information - ensure consistent string handling
+        const repoOwner = DEFAULT_GITHUB_OWNER;
+        const repoName = DEFAULT_GITHUB_REPO;
+        const branchName = DEFAULT_GITHUB_BRANCH;
+        
+        // Normalize path handling - important fix for iOS
+        let filePath = DEFAULT_GITHUB_PATH || '';
+        
+        // Remove leading and trailing slashes and spaces
+        filePath = filePath.trim();
+        while (filePath.startsWith('/')) filePath = filePath.substring(1);
+        while (filePath.endsWith('/')) filePath = filePath.slice(0, -1);
+        
+        console.log('DEBUG - REPOSITORY INFO:');
+        console.log(`Owner: "${repoOwner}"`);
+        console.log(`Repo: "${repoName}"`);
+        console.log(`Path: "${filePath}"`);
+        console.log(`File: "${fileName}"`);
+        console.log(`Branch: "${branchName}"`);
+        
+        // First verify the repository exists
+        const repoUrl = `https://api.github.com/repos/${repoOwner}/${repoName}`;
+        console.log(`Checking repository at: ${repoUrl}`);
+        
+        const repoResponse = await fetch(repoUrl, {
+            method: 'GET',
+            headers: {
+                'Authorization': `token ${token}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'User-Agent': 'QRScannerApp'
+            }
+        });
+        
+        if (!repoResponse.ok) {
+            const repoData = await repoResponse.json();
+            throw new Error(`Repository not found: ${repoData.message}`);
+        }
+        
+        console.log('Repository verified successfully');
+        
+        // Construct the full path where the file will be stored
+        let fullFilePath = fileName;
+        if (filePath) {
+            fullFilePath = `${filePath}/${fileName}`;
+        }
+        
+        console.log(`Full file path: "${fullFilePath}"`);
+        
+        // Check if the directory exists if we have a path
+        if (filePath) {
+            const dirUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}?ref=${branchName}`;
+            console.log(`Checking directory at: ${dirUrl}`);
+            
+            try {
+                const dirResponse = await fetch(dirUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'User-Agent': 'QRScannerApp'
+                    }
+                });
+                
+                if (!dirResponse.ok) {
+                    console.log(`Directory check failed with status ${dirResponse.status}`);
+                    if (dirResponse.status === 404) {
+                        console.log('Directory does not exist. File will be created at the root instead.');
+                        // If directory doesn't exist, just use the filename without path
+                        fullFilePath = fileName;
+                    }
+                } else {
+                    console.log('Directory exists');
+                }
+            } catch (error) {
+                console.error('Error checking directory:', error);
+                // Fall back to just the filename if there's an error
+                fullFilePath = fileName;
+            }
+        }
+        
+        // Check if file exists to get its SHA
+        let sha = null;
+        const fileUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${fullFilePath}?ref=${branchName}`;
+        console.log(`Checking if file exists at: ${fileUrl}`);
+        
+        try {
+            const fileResponse = await fetch(fileUrl, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'User-Agent': 'QRScannerApp'
+                }
+            });
+            
+            if (fileResponse.ok) {
+                const fileData = await fileResponse.json();
+                sha = fileData.sha;
+                console.log(`File exists with SHA: ${sha}`);
+            } else {
+                console.log(`File does not exist (status ${fileResponse.status}). Will create new file.`);
+            }
+        } catch (error) {
+            console.error('Error checking file:', error);
+        }
+        
+        // Prepare the request to create/update the file
+        const requestBody = {
+            message: `Backup QR Scanner data - ${new Date().toLocaleString()}`,
+            content: excelData,
+            branch: branchName
+        };
+        
+        if (sha) {
+            requestBody.sha = sha;
+        }
+        
+        // Use the same URL to create/update the file
+        console.log(`Creating/updating file at: ${fileUrl}`);
+        
+        const updateResponse = await fetch(`https://api.github.com/repos/${repoOwner}/${repoName}/contents/${fullFilePath}`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `token ${token}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/vnd.github.v3+json',
+                'User-Agent': 'QRScannerApp'
+            },
+            body: JSON.stringify(requestBody)
+        });
+        
+        if (updateResponse.ok) {
+            console.log('Backup successful!');
+            // Update last backup time
+            const now = new Date().toISOString();
+            localStorage.setItem(LAST_BACKUP_TIME_KEY, now);
+            localStorage.setItem(LAST_BACKUP_SESSIONS_KEY, sessions.length.toString());
+            updateLastBackupTimeDisplay();
+            
+            if (!isAutoBackup) {
+                alert('Backup completed successfully!');
+            }
+        } else {
+            const errorData = await updateResponse.json();
+            console.error('API Error Response:', errorData);
+            throw new Error(`GitHub API error (HTTP ${updateResponse.status}): ${errorData.message}. Details: ${JSON.stringify(errorData)}`);
+        }
+    } catch (error) {
+        console.error('GitHub backup error:', error);
+        
+        // Detailed error message
+        const errorMessage = `Backup failed: ${error.message}. 
+Please check: 
+1. Your GitHub token has correct permissions
+2. The repository exists and is accessible
+3. You have write access to the repository`;
+        
+        if (!isAutoBackup) {
+            alert(errorMessage);
+        }
+    } finally {
+        backupInProgress = false;
+        if (!isAutoBackup && backupBtn) {
+            backupBtn.disabled = false;
+            backupBtn.textContent = 'Backup Now';
+        }
+    }
 }
 // Export Excel file to GitHub
 async function exportExcelToGitHub(fileName, workbook) {
-return new Promise(async (resolve, reject) => {
-if (!navigator.onLine) {
-console.log('Cannot backup Excel: You are offline.');
-reject(new Error('You are offline'));
-return;
+    return new Promise(async (resolve, reject) => {
+        if (!navigator.onLine) {
+            console.log('Cannot backup Excel: You are offline.');
+            reject(new Error('You are offline'));
+            return;
+        }
+        
+        // Get token from combined hardcoded values or localStorage
+        const token = getGitHubToken();
+        if (!token) {
+            console.log('GitHub token not available, skipping Excel backup.');
+            reject(new Error('No GitHub token available'));
+            return;
+        }
+        
+        try {
+            // Convert workbook to base64
+            const excelData = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
+            
+            // Repository information - ensure consistent string handling
+            const repoOwner = DEFAULT_GITHUB_OWNER;
+            const repoName = DEFAULT_GITHUB_REPO;
+            const branchName = DEFAULT_GITHUB_BRANCH;
+            
+            // Normalize path handling - important fix for iOS
+            let filePath = DEFAULT_GITHUB_PATH || '';
+            
+            // Remove leading and trailing slashes and spaces
+            filePath = filePath.trim();
+            while (filePath.startsWith('/')) filePath = filePath.substring(1);
+            while (filePath.endsWith('/')) filePath = filePath.slice(0, -1);
+            
+            console.log('DEBUG - EXCEL EXPORT INFO:');
+            console.log(`Owner: "${repoOwner}"`);
+            console.log(`Repo: "${repoName}"`);
+            console.log(`Path: "${filePath}"`);
+            console.log(`File: "${fileName}"`);
+            console.log(`Branch: "${branchName}"`);
+            
+            // Construct the full path where the file will be stored
+            let fullFilePath = fileName;
+            if (filePath) {
+                fullFilePath = `${filePath}/${fileName}`;
+            }
+            
+            console.log(`Full file path: "${fullFilePath}"`);
+            
+            // Check if file exists to get its SHA
+            let sha = null;
+            const fileUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${fullFilePath}?ref=${branchName}`;
+            console.log(`Checking if file exists at: ${fileUrl}`);
+            
+            try {
+                const fileResponse = await fetch(fileUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'User-Agent': 'QRScannerApp'
+                    }
+                });
+                
+                if (fileResponse.ok) {
+                    const fileData = await fileResponse.json();
+                    sha = fileData.sha;
+                    console.log(`File exists with SHA: ${sha}`);
+                } else {
+                    console.log(`File does not exist (status ${fileResponse.status}). Will create new file.`);
+                }
+            } catch (error) {
+                console.error('Error checking file:', error);
+            }
+            
+            // Prepare the request to create/update the file
+            const requestBody = {
+                message: `Export Excel data - ${new Date().toLocaleString()}`,
+                content: excelData,
+                branch: branchName
+            };
+            
+            if (sha) {
+                requestBody.sha = sha;
+            }
+            
+            // Use the same URL to create/update the file
+            console.log(`Creating/updating file at: ${fileUrl}`);
+            
+            const updateResponse = await fetch(`https://api.github.com/repos/${repoOwner}/${repoName}/contents/${fullFilePath}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/vnd.github.v3+json',
+                    'User-Agent': 'QRScannerApp'
+                },
+                body: JSON.stringify(requestBody)
+            });
+            
+            if (updateResponse.ok) {
+                console.log('Excel export successful!');
+                // Update last backup time
+                const now = new Date().toISOString();
+                localStorage.setItem(LAST_BACKUP_TIME_KEY, now);
+                localStorage.setItem(LAST_BACKUP_SESSIONS_KEY, sessions.length.toString());
+                updateLastBackupTimeDisplay();
+                resolve();
+            } else {
+                const errorData = await updateResponse.json();
+                console.error('API Error Response:', errorData);
+                reject(new Error(`GitHub API error (HTTP ${updateResponse.status}): ${errorData.message}`));
+            }
+        } catch (error) {
+            console.error('GitHub Excel export error:', error);
+            reject(error);
+        }
+    });
 }
-// Get token from combined hardcoded values or localStorage
-const token = getGitHubToken();
-if (!token) {
-console.log('GitHub token not available, skipping Excel backup.');
-reject(new Error('No GitHub token available'));
-return;
-}
+// Validate GitHub token by checking access to the repository
+async function validateGitHubToken(token) {
+if (!token) return false;
 try {
-// Convert workbook to base64
-const excelData = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
-// First, try to get the SHA of the file if it exists
-let sha = null;
-try {
-const checkResponse = await fetch(`https://api.github.com/repos/${DEFAULT_GITHUB_OWNER}/${DEFAULT_GITHUB_REPO}/contents/${DEFAULT_GITHUB_PATH}/${fileName}?ref=${DEFAULT_GITHUB_BRANCH}`, {
+const repoOwner = DEFAULT_GITHUB_OWNER.toString().trim();
+const repoName = DEFAULT_GITHUB_REPO.toString().trim();
+const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}`, {
 method: 'GET',
 headers: {
 'Authorization': `token ${token}`,
-'Content-Type': 'application/json',
+'Accept': 'application/vnd.github.v3+json',
+'User-Agent': 'QRScannerApp/MobileClient'
 }
 });
-if (checkResponse.ok) {
-const fileInfo = await checkResponse.json();
-sha = fileInfo.sha;
-}
+return response.ok;
 } catch (error) {
-console.log('Excel file does not exist yet, creating new file.');
+console.error('Error validating GitHub token:', error);
+return false;
 }
-// Now create or update the file
-const requestBody = {
-message: `Export Excel data - ${new Date().toLocaleString()}`,
-content: excelData,
-branch: DEFAULT_GITHUB_BRANCH,
-};
-if (sha) {
-requestBody.sha = sha;
 }
-const response = await fetch(`https://api.github.com/repos/${DEFAULT_GITHUB_OWNER}/${DEFAULT_GITHUB_REPO}/contents/${DEFAULT_GITHUB_PATH}/${fileName}`, {
-method: 'PUT',
+// Add a function to test GitHub API connectivity
+async function testGitHubApiConnection() {
+const token = getGitHubToken();
+if (!token) {
+alert('No GitHub token available.');
+return;
+}
+try {
+// Start with simple API request
+const response = await fetch('https://api.github.com', {
+method: 'GET',
 headers: {
-'Authorization': `token ${token}`,
-'Content-Type': 'application/json',
-},
-body: JSON.stringify(requestBody)
+'User-Agent': 'QRScannerApp/MobileClient'
+}
 });
 if (response.ok) {
-console.log('Excel file uploaded to GitHub successfully');
-// Update last backup time and session count as this is now our main backup format
-const now = new Date().toISOString();
-localStorage.setItem(LAST_BACKUP_TIME_KEY, now);
-localStorage.setItem(LAST_BACKUP_SESSIONS_KEY, sessions.length.toString());
-updateLastBackupTimeDisplay();
-resolve();
-} else {
-const errorData = await response.json();
-console.error(`GitHub API error: ${errorData.message}`);
-reject(new Error(`GitHub API error: ${errorData.message}`));
-}
-} catch (error) {
-console.error('GitHub Excel export error:', error);
-reject(error);
+console.log('Basic GitHub API connectivity successful');
+// Now test with authentication
+const authResponse = await fetch('https://api.github.com/user', {
+method: 'GET',
+headers: {
+'Authorization': `token ${token}`,
+'Accept': 'application/vnd.github.v3+json',
+'User-Agent': 'QRScannerApp/MobileClient'
 }
 });
+if (authResponse.ok) {
+const userData = await authResponse.json();
+console.log('Authenticated as:', userData.login);
+alert(`GitHub API test successful. Authenticated as: ${userData.login}`);
+} else {
+const errorData = await authResponse.json();
+console.error('Authentication test failed:', errorData);
+alert(`Authentication test failed: ${errorData.message}`);
+}
+} else {
+alert(`GitHub API connectivity test failed: ${response.status}`);
+}
+} catch (error) {
+console.error('GitHub API test error:', error);
+alert(`GitHub API test error: ${error.message}`);
+}
+}
+// Diagnostic function to check token format without revealing full token
+function checkTokenFormat() {
+const token = getGitHubToken();
+if (!token) {
+console.error('No token available');
+return false;
+}
+// Check basic format without revealing token
+const tokenStart = token.substring(0, 4);
+const tokenEnd = token.substring(token.length - 4);
+const tokenLength = token.length;
+console.log(`Token format check: 
+- Length: ${tokenLength}
+- Starts with: ${tokenStart}...
+- Ends with: ...${tokenEnd}
+- Contains spaces: ${token.includes(' ')}
+- Contains newlines: ${token.includes('\n')}
+- Format appears to be personal access token: ${token.startsWith('ghp_') || token.startsWith('github_pat_')}
+`);
+return true;
 }
 //========================================================================================================== INITIALIZATION ========//
 // Check if jsQR is already loaded from the local file
@@ -1154,6 +1464,62 @@ playSuccessSound();
 }
 }
 //========================================================================================================== UI NAVIGATION & EVENT HANDLERS ========//
+// Tab scrolling functionality
+function setupTabScrolling() {
+const tabsContainer = document.querySelector('.tabs');
+if (!tabsContainer) return;
+// Variables for tracking touch/mouse events
+let isDown = false;
+let startX;
+let scrollLeft;
+// Mouse events for desktop
+tabsContainer.addEventListener('mousedown', (e) => {
+isDown = true;
+tabsContainer.classList.add('active-scroll');
+startX = e.pageX - tabsContainer.offsetLeft;
+scrollLeft = tabsContainer.scrollLeft;
+});
+tabsContainer.addEventListener('mouseleave', () => {
+isDown = false;
+tabsContainer.classList.remove('active-scroll');
+});
+tabsContainer.addEventListener('mouseup', () => {
+isDown = false;
+tabsContainer.classList.remove('active-scroll');
+});
+tabsContainer.addEventListener('mousemove', (e) => {
+if (!isDown) return;
+e.preventDefault();
+const x = e.pageX - tabsContainer.offsetLeft;
+const walk = (x - startX) * 2; // Scroll speed multiplier
+tabsContainer.scrollLeft = scrollLeft - walk;
+});
+// Touch events for mobile
+tabsContainer.addEventListener('touchstart', (e) => {
+isDown = true;
+tabsContainer.classList.add('active-scroll');
+startX = e.touches[0].pageX - tabsContainer.offsetLeft;
+scrollLeft = tabsContainer.scrollLeft;
+});
+tabsContainer.addEventListener('touchend', () => {
+isDown = false;
+tabsContainer.classList.remove('active-scroll');
+});
+tabsContainer.addEventListener('touchmove', (e) => {
+if (!isDown) return;
+const x = e.touches[0].pageX - tabsContainer.offsetLeft;
+const walk = (x - startX) * 2;
+tabsContainer.scrollLeft = scrollLeft - walk;
+});
+// Add horizontal wheel scrolling support
+tabsContainer.addEventListener('wheel', (e) => {
+if (e.deltaY !== 0) {
+e.preventDefault();
+tabsContainer.scrollLeft += e.deltaY;
+}
+}, { passive: false });
+console.log("Tab scrolling functionality initialized");
+}
 // Set up button event listeners
 function setupButtonEventListeners() {
 // Start Session Button
@@ -1166,6 +1532,8 @@ console.log("End session button handler attached");
 } else {
 console.error("End session button not found in the DOM");
 }
+// Initialize tab scrolling functionality
+setupTabScrolling();
 // Update button states based on current session status
 updateButtonStates();
 }
@@ -2038,9 +2406,29 @@ const firstSheetName = workbook.SheetNames[0];
 const worksheet = workbook.Sheets[firstSheetName];
 // Convert to JSON
 const jsonData = XLSX.utils.sheet_to_json(worksheet);
-// Store the data
-studentsData = jsonData;
+// Process the data to ensure consistent property names
+studentsData = jsonData.map(student => {
+const processedStudent = {};
+// Loop through all properties to find year, group and ID regardless of case
+Object.keys(student).forEach(key => {
+const lowerKey = key.toLowerCase();
+if (lowerKey.includes('year')) {
+processedStudent.year = student[key];
+}
+if (lowerKey.includes('group')) {
+processedStudent.group = student[key];
+}
+if (lowerKey.includes('id')) {
+processedStudent.id = student[key];
+}
+});
+return processedStudent;
+});
 console.log("Students data loaded:", studentsData.length, "records");
+// If checklist is active, refresh the view
+if (checklistActiveSession) {
+populateStudentChecklist();
+}
 })
 .catch(error => {
 console.error("Error loading students data:", error);
@@ -2133,13 +2521,40 @@ if (studentsData.length === 0) {
 studentsChecklist.innerHTML = '<p class="no-data-message">No student data found. Please make sure students_ids.xlsx is in the correct location.</p>';
 return;
 }
+// Create dropdown navigation
+const navContainer = document.createElement('div');
+navContainer.className = 'checklist-navigation';
+navContainer.style.marginBottom = '15px';
+navContainer.style.display = 'flex';
+navContainer.style.gap = '10px';
+// Create year filter
+const yearSelect = document.createElement('select');
+yearSelect.id = 'yearFilter';
+yearSelect.style.padding = '5px';
+yearSelect.style.borderRadius = '4px';
+yearSelect.style.flex = '1';
+// Create group filter
+const groupSelect = document.createElement('select');
+groupSelect.id = 'groupFilter';
+groupSelect.style.padding = '5px';
+groupSelect.style.borderRadius = '4px';
+groupSelect.style.flex = '1';
 // Group students by year and group
 const grouped = {};
+const years = new Set();
+const groups = new Set();
 studentsData.forEach(student => {
-const year = student.year || 'Unknown';
-const group = student.group || 'Unknown';
-const id = student.id || student['students id'] || student['student id'] || student['Student ID'];
+// Check all possible property names for year, group and id
+const year = student.Year || student.year || 'Unknown';
+const group = student.Group || student.group || 'Unknown';
+const id = student.ID || student.Id || student.id || 
+student['students id'] || student['student id'] || 
+student['Student ID'] || student['student ID'] || 
+student['Students ID'];
 if (!id) return; // Skip entries without ID
+// Add to sets for filters
+years.add(year);
+groups.add(group);
 const key = `${year}_${group}`;
 if (!grouped[key]) {
 grouped[key] = {
@@ -2148,15 +2563,73 @@ group: group,
 students: []
 };
 }
-grouped[key].students.push(id);
+grouped[key].students.push({
+id: id,
+year: year,
+group: group
 });
+});
+// Populate year filter
+yearSelect.innerHTML = '<option value="all">All Years</option>';
+Array.from(years).sort().forEach(year => {
+const option = document.createElement('option');
+option.value = year;
+option.textContent = year;
+yearSelect.appendChild(option);
+});
+// Populate group filter
+groupSelect.innerHTML = '<option value="all">All Groups</option>';
+Array.from(groups).sort().forEach(group => {
+const option = document.createElement('option');
+option.value = group;
+option.textContent = group;
+groupSelect.appendChild(option);
+});
+// Add filters to navigation
+const yearLabel = document.createElement('label');
+yearLabel.textContent = 'Year: ';
+yearLabel.htmlFor = 'yearFilter';
+yearLabel.style.fontWeight = 'bold';
+const groupLabel = document.createElement('label');
+groupLabel.textContent = 'Group: ';
+groupLabel.htmlFor = 'groupFilter';
+groupLabel.style.fontWeight = 'bold';
+const yearContainer = document.createElement('div');
+yearContainer.style.display = 'flex';
+yearContainer.style.alignItems = 'center';
+yearContainer.style.gap = '5px';
+yearContainer.appendChild(yearLabel);
+yearContainer.appendChild(yearSelect);
+const groupContainer = document.createElement('div');
+groupContainer.style.display = 'flex';
+groupContainer.style.alignItems = 'center';
+groupContainer.style.gap = '5px';
+groupContainer.appendChild(groupLabel);
+groupContainer.appendChild(groupSelect);
+navContainer.appendChild(yearContainer);
+navContainer.appendChild(groupContainer);
+// Add navigation to checklist
+studentsChecklist.appendChild(navContainer);
+// Create a container for student checkboxes
+const checklistContent = document.createElement('div');
+checklistContent.id = 'checklistContent';
+studentsChecklist.appendChild(checklistContent);
+// Function to update checklist content based on filters
+function updateChecklistContent() {
+const selectedYear = yearSelect.value;
+const selectedGroup = groupSelect.value;
+checklistContent.innerHTML = '';
 // Sort by year and group
 const sortedKeys = Object.keys(grouped).sort();
-// Create the HTML structure
+// Filter and create the HTML structure
 sortedKeys.forEach(key => {
 const data = grouped[key];
+// Apply filters
+if ((selectedYear === 'all' || data.year === selectedYear) && 
+(selectedGroup === 'all' || data.group === selectedGroup)) {
 // Create section header
 const sectionHeader = document.createElement('div');
+sectionHeader.className = 'checklist-section-header';
 sectionHeader.style.fontWeight = 'bold';
 sectionHeader.style.padding = '5px';
 sectionHeader.style.backgroundColor = '#f0f0f0';
@@ -2166,25 +2639,31 @@ sectionHeader.style.position = 'sticky';
 sectionHeader.style.top = '0';
 sectionHeader.style.zIndex = '1';
 sectionHeader.textContent = `Year: ${data.year}, Group: ${data.group}`;
-studentsChecklist.appendChild(sectionHeader);
+checklistContent.appendChild(sectionHeader);
 // Create student checkboxes
 const studentList = document.createElement('div');
+studentList.className = 'student-list';
 studentList.style.marginBottom = '15px';
 studentList.style.paddingLeft = '15px';
-data.students.forEach(id => {
+data.students.forEach(student => {
 const checkboxContainer = document.createElement('div');
+checkboxContainer.className = 'checkbox-container';
 checkboxContainer.style.display = 'flex';
 checkboxContainer.style.alignItems = 'center';
 checkboxContainer.style.margin = '3px 0';
 const checkbox = document.createElement('input');
 checkbox.type = 'checkbox';
-checkbox.id = `student_${id}`;
-checkbox.value = id;
-checkbox.dataset.id = id;
+checkbox.id = `student_${student.id}`;
+checkbox.value = student.id;
+checkbox.dataset.id = student.id;
 checkbox.style.marginRight = '8px';
+// If this student is already selected, check the box
+if (selectedStudents.has(student.id)) {
+checkbox.checked = true;
+}
 const label = document.createElement('label');
-label.setAttribute('for', `student_${id}`);
-label.textContent = id;
+label.setAttribute('for', `student_${student.id}`);
+label.textContent = student.id;
 checkbox.addEventListener('change', function() {
 handleStudentSelection(this);
 });
@@ -2192,8 +2671,23 @@ checkboxContainer.appendChild(checkbox);
 checkboxContainer.appendChild(label);
 studentList.appendChild(checkboxContainer);
 });
-studentsChecklist.appendChild(studentList);
+checklistContent.appendChild(studentList);
+}
 });
+// Show message if no students match filter
+if (checklistContent.children.length === 0) {
+const noMatchMessage = document.createElement('p');
+noMatchMessage.style.padding = '10px';
+noMatchMessage.style.textAlign = 'center';
+noMatchMessage.textContent = 'No students match the selected filters.';
+checklistContent.appendChild(noMatchMessage);
+}
+}
+// Add event listeners to filters
+yearSelect.addEventListener('change', updateChecklistContent);
+groupSelect.addEventListener('change', updateChecklistContent);
+// Initialize checklist content
+updateChecklistContent();
 }
 // Handle student selection
 function handleStudentSelection(checkbox) {
