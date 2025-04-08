@@ -91,37 +91,39 @@ font-size: 14px;
 }
 /* Tabs Styles */
 .tabs {
-    display: flex;
-    border-bottom: 1px solid var(--border-color);
-    margin-bottom: 1rem;
-    overflow-x: auto; /* Enable horizontal scrolling */
-    white-space: nowrap; /* Prevent tab text from wrapping */
-    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
-    scrollbar-width: thin; /* For Firefox */
-    padding-bottom: 4px; /* Add some padding to account for scrollbar */
+display: flex;
+border-bottom: 1px solid var(--border-color);
+margin-bottom: 1rem;
+overflow-x: auto; /* Enable horizontal scrolling */
+white-space: nowrap; /* Prevent tab text from wrapping */
+-webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+scrollbar-width: thin; /* For Firefox */
+padding-bottom: 4px; /* Add some padding to account for scrollbar */
+position: relative; /* For proper event handling */
+cursor: grab; /* Show grab cursor to indicate scrollable */
 }
-
+.tabs.active-scroll {
+cursor: grabbing; /* Change cursor when actively scrolling */
+}
 /* Hide scrollbar for Chrome, Safari and Opera */
 .tabs::-webkit-scrollbar {
-    height: 4px;
+height: 4px;
 }
-
 /* Handle on hover */
 .tabs::-webkit-scrollbar-thumb {
-    background: var(--border-color);
-    border-radius: 4px;
+background: var(--border-color);
+border-radius: 4px;
 }
-
 .tab {
-    padding: 0.75rem 1.5rem;
-    cursor: pointer;
-    border-bottom: 3px solid transparent;
-    flex-shrink: 0; /* Prevent tabs from shrinking */
+padding: 0.75rem 1.5rem;
+cursor: pointer;
+border-bottom: 3px solid transparent;
+flex-shrink: 0; /* Prevent tabs from shrinking */
+user-select: none; /* Prevent text selection during drag */
 }
-
 .tab.active {
-    border-bottom: 3px solid var(--primary-color);
-    font-weight: bold;
+border-bottom: 3px solid var(--primary-color);
+font-weight: bold;
 }
 .tab-content {
 display: none;
@@ -1173,6 +1175,62 @@ playSuccessSound();
 }
 }
 //========================================================================================================== UI NAVIGATION & EVENT HANDLERS ========//
+// Tab scrolling functionality
+function setupTabScrolling() {
+const tabsContainer = document.querySelector('.tabs');
+if (!tabsContainer) return;
+// Variables for tracking touch/mouse events
+let isDown = false;
+let startX;
+let scrollLeft;
+// Mouse events for desktop
+tabsContainer.addEventListener('mousedown', (e) => {
+isDown = true;
+tabsContainer.classList.add('active-scroll');
+startX = e.pageX - tabsContainer.offsetLeft;
+scrollLeft = tabsContainer.scrollLeft;
+});
+tabsContainer.addEventListener('mouseleave', () => {
+isDown = false;
+tabsContainer.classList.remove('active-scroll');
+});
+tabsContainer.addEventListener('mouseup', () => {
+isDown = false;
+tabsContainer.classList.remove('active-scroll');
+});
+tabsContainer.addEventListener('mousemove', (e) => {
+if (!isDown) return;
+e.preventDefault();
+const x = e.pageX - tabsContainer.offsetLeft;
+const walk = (x - startX) * 2; // Scroll speed multiplier
+tabsContainer.scrollLeft = scrollLeft - walk;
+});
+// Touch events for mobile
+tabsContainer.addEventListener('touchstart', (e) => {
+isDown = true;
+tabsContainer.classList.add('active-scroll');
+startX = e.touches[0].pageX - tabsContainer.offsetLeft;
+scrollLeft = tabsContainer.scrollLeft;
+});
+tabsContainer.addEventListener('touchend', () => {
+isDown = false;
+tabsContainer.classList.remove('active-scroll');
+});
+tabsContainer.addEventListener('touchmove', (e) => {
+if (!isDown) return;
+const x = e.touches[0].pageX - tabsContainer.offsetLeft;
+const walk = (x - startX) * 2;
+tabsContainer.scrollLeft = scrollLeft - walk;
+});
+// Add horizontal wheel scrolling support
+tabsContainer.addEventListener('wheel', (e) => {
+if (e.deltaY !== 0) {
+e.preventDefault();
+tabsContainer.scrollLeft += e.deltaY;
+}
+}, { passive: false });
+console.log("Tab scrolling functionality initialized");
+}
 // Set up button event listeners
 function setupButtonEventListeners() {
 // Start Session Button
@@ -1185,6 +1243,8 @@ console.log("End session button handler attached");
 } else {
 console.error("End session button not found in the DOM");
 }
+// Initialize tab scrolling functionality
+setupTabScrolling();
 // Update button states based on current session status
 updateButtonStates();
 }
