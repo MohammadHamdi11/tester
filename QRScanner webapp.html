@@ -192,6 +192,66 @@ align-items: stretch;
 width: 95%;
 margin: 10% auto;
 }
+.checklist-container {
+margin-top: 1rem;
+border: 1px solid #ddd;
+border-radius: 8px;
+background-color: #f9f9f9;
+padding: 1rem;
+max-height: 400px;
+}
+.checklist-header {
+display: flex;
+justify-content: space-between;
+align-items: center;
+margin-bottom: 1rem;
+}
+.search-input {
+flex-grow: 1;
+padding: 8px;
+border: 1px solid #ccc;
+border-radius: 4px;
+margin-right: 1rem;
+}
+.checklist-area {
+max-height: 300px;
+overflow-y: auto;
+border: 1px solid #ddd;
+border-radius: 4px;
+padding: 0.5rem;
+background-color: white;
+}
+.student-group {
+margin-bottom: 10px;
+}
+.group-header {
+font-weight: bold;
+padding: 5px;
+background-color: #f0f0f0;
+border-radius: 4px;
+cursor: pointer;
+display: flex;
+justify-content: space-between;
+}
+.group-items {
+padding-left: 15px;
+margin-top: 5px;
+}
+.student-item {
+display: flex;
+align-items: center;
+padding: 3px;
+}
+.student-item:hover {
+background-color: #f5f5f5;
+}
+.student-checkbox {
+margin-right: 10px;
+}
+.button-small {
+padding: 6px 12px;
+font-size: 14px;
+}
 }
 </style>
 </head>
@@ -202,6 +262,7 @@ margin: 10% auto;
 <div class="container">
 <div class="tabs">
 <div class="tab active" data-tab="scanner">Scanner</div>
+<div class="tab" data-tab="checklist">Checklist</div>
 <div class="tab" data-tab="history">History</div>
 <div class="tab" data-tab="backup">Backup</div>
 <div class="tab" data-tab="about">About</div>
@@ -238,6 +299,45 @@ margin: 10% auto;
 </tr>
 </thead>
 <tbody id="resultBody"></tbody>
+</table>
+</div>
+</div>
+</div>
+<div id="checklist" class="tab-content">
+<div class="card">
+<h2>Student Selection</h2>
+<div class="flex-between">
+<div class="button-group">
+<button id="startChecklistSessionBtn" class="button">Start New Session</button>
+<button id="endChecklistSessionBtn" class="button" disabled>End Session</button>
+<button id="addCustomEntryBtn" class="button button-secondary" style="display: none;">Add Custom Entry</button>
+</div>
+<div id="checklistSessionInfo" style="display: none;">
+<p><strong>Location:</strong> <span id="checklistLocation">-</span></p>
+<p><strong>Started:</strong> <span id="checklistDateTime">-</span></p>
+</div>
+</div>
+<div class="checklist-container" style="display: none;">
+<div class="checklist-header">
+<input type="text" id="studentSearchInput" placeholder="Search for students..." class="search-input">
+<button id="closeChecklistBtn" class="button button-small">Close</button>
+</div>
+<div id="studentsChecklist" class="checklist-area">
+<!-- Students will be loaded here -->
+</div>
+</div>
+<div class="selection-results">
+<h3>Selected Students</h3>
+<p id="noSelectionsMessage">No students selected yet.</p>
+<table id="selectionTable" class="result-table" style="display: none;">
+<thead>
+<tr>
+<th>ID</th>
+<th>Content</th>
+<th>Time</th>
+</tr>
+</thead>
+<tbody id="selectionBody"></tbody>
 </table>
 </div>
 </div>
@@ -362,6 +462,17 @@ margin: 10% auto;
 <button id="confirmSessionBtn" class="button">Start Now</button>
 </div>
 </div>
+<div id="customEntryModal" class="modal" style="display: none;">
+<div class="modal-content">
+<span class="close" id="closeCustomEntryBtn">&times;</span>
+<h2>Add Custom Student ID</h2>
+<div class="form-group">
+<label for="customIdInput">Student ID:</label>
+<input type="text" id="customIdInput" placeholder="Enter student ID">
+</div>
+<button id="confirmCustomEntryBtn" class="button">Add Student</button>
+</div>
+</div>
 <div id="backup" class="tab-content">
 <div class="card">
 <h2>Backup Controls</h2>
@@ -373,6 +484,20 @@ margin: 10% auto;
 <button id="backupBtn" class="button">Backup Now</button>
 <p><small>Note: When online, backups automatically occurs at app startup and when sessions end. If you need to manually backup the files, press the button above.</small></p>
 </div>
+</div>
+</div>
+</div>
+<!-- Checklist Session Modal -->
+<div id="checklistModal" class="modal">
+<div class="modal-content">
+<span class="close" id="closeChecklistModalBtn">&times;</span>
+<h2>Start Checklist Session</h2>
+<div class="form-group">
+<label for="checklistLocationInput">Location:</label>
+<input type="text" id="checklistLocationInput" placeholder="Enter location">
+</div>
+<div class="modal-actions">
+<button id="confirmChecklistBtn" class="primary-btn">Start Session</button>
 </div>
 </div>
 </div>
@@ -1622,6 +1747,422 @@ exportSession(session);
 // Close session details
 closeDetailsBtn.addEventListener('click', () => {
 sessionDetails.style.display = 'none';
+});
+//========================================================================================================== CHECKLIST MODULE ========//
+// DOM Elements for Checklist
+const startChecklistSessionBtn = document.getElementById('startChecklistSessionBtn');
+const endChecklistSessionBtn = document.getElementById('endChecklistSessionBtn');
+const addCustomEntryBtn = document.getElementById('addCustomEntryBtn');
+const checklistLocation = document.getElementById('checklistLocation');
+const checklistDateTime = document.getElementById('checklistDateTime');
+const checklistSessionInfo = document.getElementById('checklistSessionInfo');
+const checklistContainer = document.querySelector('.checklist-container');
+const closeChecklistBtn = document.getElementById('closeChecklistBtn');
+const studentsChecklist = document.getElementById('studentsChecklist');
+const studentSearchInput = document.getElementById('studentSearchInput');
+const selectionTable = document.getElementById('selectionTable');
+const selectionBody = document.getElementById('selectionBody');
+const noSelectionsMessage = document.getElementById('noSelectionsMessage');
+const checklistModal = document.getElementById('checklistModal');
+const closeChecklistModalBtn = document.getElementById('closeChecklistModalBtn');
+const confirmChecklistBtn = document.getElementById('confirmChecklistBtn');
+const checklistLocationInput = document.getElementById('checklistLocationInput');
+// State variables for checklist
+let checklistActiveSession = null;
+let studentsData = [];
+let selectedStudents = new Set();
+// Initialize checklist functionality
+function initializeChecklistModule() {
+// Load students data from Excel file
+loadStudentsData();
+// Event listeners for checklist buttons
+startChecklistSessionBtn.addEventListener('click', startChecklistSession);
+endChecklistSessionBtn.addEventListener('click', endChecklistSession);
+addCustomEntryBtn.addEventListener('click', showAddCustomEntryModal);
+closeChecklistBtn.addEventListener('click', closeChecklist);
+// Add event listeners for checklist modal
+if(closeChecklistModalBtn) {
+closeChecklistModalBtn.addEventListener('click', () => {
+checklistModal.style.display = 'none';
+});
+}
+if(confirmChecklistBtn) {
+confirmChecklistBtn.addEventListener('click', confirmChecklistSession);
+}
+// Search functionality
+studentSearchInput.addEventListener('input', filterStudents);
+console.log("Checklist module initialized");
+}
+// Load students data from the Excel file
+function loadStudentsData() {
+console.log("Loading students data from Excel...");
+// Try to fetch the Excel file
+fetch('students_ids.xlsx')
+.then(response => {
+if (!response.ok) {
+throw new Error('Failed to load students data file');
+}
+return response.arrayBuffer();
+})
+.then(buffer => {
+// Parse the Excel file using XLSX library
+const data = new Uint8Array(buffer);
+const workbook = XLSX.read(data, { type: 'array' });
+// Get the first sheet
+const firstSheetName = workbook.SheetNames[0];
+const worksheet = workbook.Sheets[firstSheetName];
+// Convert to JSON
+const jsonData = XLSX.utils.sheet_to_json(worksheet);
+// Store the data
+studentsData = jsonData;
+console.log("Students data loaded:", studentsData.length, "records");
+})
+.catch(error => {
+console.error("Error loading students data:", error);
+// Create empty array if file doesn't exist
+studentsData = [];
+});
+}
+// Start a new checklist session
+function startChecklistSession() {
+console.log("Starting checklist session...");
+// Display the checklist-specific modal
+if(checklistModal) {
+checklistModal.style.display = 'block';
+checklistLocationInput.focus();
+} else {
+// Fallback if modal doesn't exist - create a simple prompt
+const location = prompt('Enter location for checklist session:');
+if(location) {
+createNewChecklistSession(location);
+}
+}
+}
+// Create a new checklist session with the provided location
+function createNewChecklistSession(location) {
+if (!location) {
+alert('Please enter a location');
+return;
+}
+// Create new session
+const now = new Date();
+const sessionId = `checklist_${now.getTime()}`;
+const formattedDateTime = formatDateTime(now);
+checklistActiveSession = {
+id: sessionId,
+location: location,
+dateTime: now.toISOString(),
+formattedDateTime: formattedDateTime,
+scans: [], // Using the same structure as scanner for compatibility
+inProgress: true,
+isChecklist: true // Flag to identify checklist sessions
+};
+// Update UI
+checklistLocation.textContent = location;
+checklistDateTime.textContent = formattedDateTime;
+checklistSessionInfo.style.display = 'block';
+// Show checklist container
+checklistContainer.style.display = 'block';
+// Populate the checklist with student data
+populateStudentChecklist();
+// Clear previous results
+selectionBody.innerHTML = '';
+selectionTable.style.display = 'none';
+noSelectionsMessage.style.display = 'block';
+// Update button states
+startChecklistSessionBtn.disabled = true;
+endChecklistSessionBtn.disabled = false;
+addCustomEntryBtn.style.display = 'inline-block';
+// Reset selected students
+selectedStudents = new Set();
+console.log("New checklist session created:", sessionId);
+}
+// Confirm checklist session from modal
+function confirmChecklistSession() {
+const location = checklistLocationInput.value.trim();
+// Hide modal
+checklistModal.style.display = 'none';
+// Create the session
+createNewChecklistSession(location);
+}
+// Populate the student checklist from the loaded data
+function populateStudentChecklist() {
+studentsChecklist.innerHTML = '';
+if (studentsData.length === 0) {
+studentsChecklist.innerHTML = '<p class="no-data-message">No student data found. Please make sure students_ids.xlsx is in the correct location.</p>';
+return;
+}
+// Group students by year and group
+const grouped = {};
+studentsData.forEach(student => {
+const year = student.year || 'Unknown';
+const group = student.group || 'Unknown';
+const id = student.id || student['students id'] || student['student id'] || student['Student ID'];
+if (!id) return; // Skip entries without ID
+const key = `${year}_${group}`;
+if (!grouped[key]) {
+grouped[key] = {
+year: year,
+group: group,
+students: []
+};
+}
+grouped[key].students.push(id);
+});
+// Sort by year and group
+const sortedKeys = Object.keys(grouped).sort();
+// Create the HTML structure
+sortedKeys.forEach(key => {
+const data = grouped[key];
+// Create section header
+const sectionHeader = document.createElement('div');
+sectionHeader.className = 'checklist-section-header';
+sectionHeader.textContent = `Year: ${data.year}, Group: ${data.group}`;
+studentsChecklist.appendChild(sectionHeader);
+// Create student checkboxes
+const studentList = document.createElement('div');
+studentList.className = 'student-list';
+data.students.forEach(id => {
+const checkboxContainer = document.createElement('div');
+checkboxContainer.className = 'checkbox-container';
+const checkbox = document.createElement('input');
+checkbox.type = 'checkbox';
+checkbox.id = `student_${id}`;
+checkbox.value = id;
+checkbox.dataset.id = id;
+const label = document.createElement('label');
+label.setAttribute('for', `student_${id}`);
+label.textContent = id;
+checkbox.addEventListener('change', function() {
+handleStudentSelection(this);
+});
+checkboxContainer.appendChild(checkbox);
+checkboxContainer.appendChild(label);
+studentList.appendChild(checkboxContainer);
+});
+studentsChecklist.appendChild(studentList);
+});
+}
+// Handle student selection
+function handleStudentSelection(checkbox) {
+const studentId = checkbox.dataset.id;
+if (checkbox.checked) {
+// Add student to selected set
+if (!selectedStudents.has(studentId)) {
+selectedStudents.add(studentId);
+addStudentToSelectionTable(studentId);
+}
+} else {
+// Remove student from selected set
+if (selectedStudents.has(studentId)) {
+selectedStudents.delete(studentId);
+removeStudentFromSelectionTable(studentId);
+}
+}
+}
+// Add student to the selection table
+function addStudentToSelectionTable(studentId) {
+if (!checklistActiveSession) return;
+// Create timestamp
+const now = new Date();
+const timestamp = now.toISOString();
+const formattedTime = formatTime(now);
+// Add to session scans (using same format as scanner)
+const newScan = {
+id: studentId,
+content: studentId, // Using ID as content for consistency with scanner
+timestamp: timestamp,
+formattedTime: formattedTime,
+time: now // Add full date object for proper export formatting
+};
+checklistActiveSession.scans.push(newScan);
+// Update UI
+updateSelectionTable();
+// NOTE: Sound feedback removed as requested
+}
+// Remove student from the selection table
+function removeStudentFromSelectionTable(studentId) {
+if (!checklistActiveSession) return;
+// Remove from session scans
+checklistActiveSession.scans = checklistActiveSession.scans.filter(scan => scan.id !== studentId);
+// Update UI
+updateSelectionTable();
+}
+// Update the selection table
+function updateSelectionTable() {
+if (!checklistActiveSession) return;
+selectionBody.innerHTML = '';
+if (checklistActiveSession.scans.length > 0) {
+noSelectionsMessage.style.display = 'none';
+selectionTable.style.display = 'table';
+// Add row number for display
+checklistActiveSession.scans.forEach((scan, index) => {
+const row = document.createElement('tr');
+row.innerHTML = `
+<td>${index + 1}</td>
+<td>${scan.id}</td>
+<td>${scan.formattedTime}</td>
+`;
+selectionBody.appendChild(row);
+});
+} else {
+noSelectionsMessage.style.display = 'block';
+selectionTable.style.display = 'none';
+}
+}
+// Close checklist view but keep session active
+function closeChecklist() {
+checklistContainer.style.display = 'none';
+}
+// Filter students in the checklist based on search
+function filterStudents() {
+const searchTerm = studentSearchInput.value.toLowerCase();
+const checkboxes = studentsChecklist.querySelectorAll('.checkbox-container');
+checkboxes.forEach(container => {
+const label = container.querySelector('label');
+const studentId = label.textContent.toLowerCase();
+if (studentId.includes(searchTerm)) {
+container.style.display = 'block';
+} else {
+container.style.display = 'none';
+}
+});
+// Also handle section headers visibility
+const sections = studentsChecklist.querySelectorAll('.checklist-section-header');
+sections.forEach(section => {
+const nextSibling = section.nextElementSibling;
+const visibleStudents = nextSibling.querySelectorAll('.checkbox-container[style="display: block"]').length;
+if (visibleStudents > 0) {
+section.style.display = 'block';
+} else {
+section.style.display = 'none';
+}
+});
+}
+// Show modal for manual student ID entry
+function showAddCustomEntryModal() {
+// Reuse existing manual entry modal
+manualIdInput.value = '';
+manualEntryModal.style.display = 'block';
+manualIdInput.focus();
+// Override the confirm button behavior temporarily
+const originalConfirmFunction = confirmManualEntryBtn.onclick;
+confirmManualEntryBtn.onclick = function() {
+const customId = manualIdInput.value.trim();
+if (!customId) {
+alert('Please enter a valid student ID');
+return;
+}
+// Add the custom ID
+manualEntryModal.style.display = 'none';
+// Add to selected students if not already there
+if (!selectedStudents.has(customId)) {
+selectedStudents.add(customId);
+addStudentToSelectionTable(customId);
+}
+// Restore original function
+confirmManualEntryBtn.onclick = originalConfirmFunction;
+};
+}
+// End checklist session
+function endChecklistSession() {
+if (!checklistActiveSession) {
+console.log("No active checklist session to end");
+return;
+}
+console.log("Ending checklist session:", checklistActiveSession.id);
+// Confirm if there are no selections
+if (checklistActiveSession.scans.length === 0) {
+if (!confirm("No students selected in this session. Do you still want to end it?")) {
+return;
+}
+}
+// Save the session for export
+const sessionToExport = { ...checklistActiveSession };
+// Add the session to the main sessions array
+sessionToExport.inProgress = false;
+sessions.push(sessionToExport);
+// Save to storage
+saveSessionsToStorage();
+// Update UI - Reset all elements to pre-session state
+checklistSessionInfo.style.display = 'none';
+checklistContainer.style.display = 'none';
+selectionTable.style.display = 'none';
+selectionBody.innerHTML = '';
+noSelectionsMessage.style.display = 'none';
+// Hide custom entry button
+addCustomEntryBtn.style.display = 'none';
+// Clear active session
+checklistActiveSession = null;
+selectedStudents = new Set();
+// Update button states
+startChecklistSessionBtn.disabled = false;
+endChecklistSessionBtn.disabled = true;
+// Update history view
+updateHistoryView();
+// Export the session to Excel
+if (sessionToExport && sessionToExport.scans && sessionToExport.scans.length > 0) {
+setTimeout(() => {
+console.log("Exporting checklist session to Excel");
+exportChecklistSession(sessionToExport);
+}, 500);
+}
+console.log("Checklist session ended successfully");
+}
+// Export a checklist session to Excel (separated from main export function)
+function exportChecklistSession(session) {
+if (!window.XLSX) {
+console.error("XLSX library not loaded");
+alert("Export functionality is not available. Please check your internet connection.");
+return;
+}
+const fileName = `Checklist_${session.location.replace(/[^a-z0-9]/gi, '_')}_${formatDateTimeForFile(new Date(session.dateTime))}.xlsx`;
+// Prepare data with the correct structure
+const data = [
+['Number', 'Student ID', 'Location', 'Log Date', 'Log Time']
+];
+// Add scans with row numbers
+session.scans.forEach((scan, index) => {
+const scanDate = new Date(scan.time);
+data.push([
+index + 1,              // Row number
+scan.content,           // Student ID
+session.location,       // Location
+formatDate(scanDate),   // Log Date
+formatTime(scanDate)    // Log Time
+]);
+});
+// Create workbook
+const ws = XLSX.utils.aoa_to_sheet(data);
+const wb = XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(wb, ws, "Checklist");
+// First save the file locally
+try {
+XLSX.writeFile(wb, fileName);
+console.log("Checklist Excel file saved locally:", fileName);
+// After successful local save, then backup to GitHub if that functionality exists
+if (typeof exportExcelToGitHub === 'function') {
+setTimeout(() => {
+exportExcelToGitHub(fileName, wb)
+.then(() => {
+console.log("GitHub backup of checklist Excel complete");
+})
+.catch(err => {
+console.error("GitHub backup failed:", err);
+});
+}, 1000);
+}
+} catch (error) {
+console.error("Error saving checklist Excel file locally:", error);
+alert("Error exporting file: " + error.message);
+}
+}
+// Add this to document ready event
+document.addEventListener('DOMContentLoaded', function() {
+// Initialize the checklist module
+if (document.getElementById('startChecklistSessionBtn')) {
+initializeChecklistModule();
+}
 });
 //========================================================================================================== SESSION STORAGE & RECOVERY ========//
 // Save active session to local storage
