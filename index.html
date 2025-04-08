@@ -22,6 +22,10 @@
 --bg-color: #ffffff;
 --card-bg: #ffffff;
 --border-color: #3d3d3d;
+--light-bg: #f9f9f9;
+--hover-bg: #f5f5f5;
+--disabled-bg: #cccccc;
+--header-bg: #f0f0f0;
 }
 * {
 box-sizing: border-box;
@@ -47,6 +51,7 @@ max-width: 1200px;
 margin: 0 auto;
 padding: 1rem;
 }
+/* Card Styles */
 .card {
 background-color: var(--card-bg);
 border-radius: 8px;
@@ -54,6 +59,7 @@ box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 padding: 1rem;
 margin-bottom: 1rem;
 }
+/* Button Styles */
 .button {
 background-color: var(--primary-color);
 color: white;
@@ -68,7 +74,7 @@ transition: background-color 0.3s;
 background-color: var(--secondary-color);
 }
 .button:disabled {
-background-color: #cccccc;
+background-color: var(--disabled-bg);
 cursor: not-allowed;
 }
 .button-secondary {
@@ -79,6 +85,11 @@ border: 1px solid var(--border-color);
 .button-secondary:hover {
 background-color: #e1e1e1;
 }
+.button-small {
+padding: 6px 12px;
+font-size: 14px;
+}
+/* Tabs Styles */
 .tabs {
 display: flex;
 border-bottom: 1px solid var(--border-color);
@@ -99,6 +110,7 @@ display: none;
 .tab-content.active {
 display: block;
 }
+/* Scanner Styles */
 #video {
 width: 100%;
 background-color: #000;
@@ -108,6 +120,7 @@ border-radius: 8px;
 position: relative;
 min-height: 300px;
 }
+/* Table Styles */
 .result-table {
 width: 100%;
 border-collapse: collapse;
@@ -121,6 +134,7 @@ text-align: left;
 .result-table th {
 background-color: #f1f1f1;
 }
+/* Modal Styles */
 .modal {
 display: none;
 position: fixed;
@@ -144,18 +158,20 @@ float: right;
 cursor: pointer;
 font-size: 1.5rem;
 }
-input[type="text"] {
+/* Form Element Styles */
+input[type="text"], select {
 width: 100%;
 padding: 0.75rem;
 margin: 0.5rem 0;
 border: 1px solid var(--border-color);
 border-radius: 4px;
 }
+/* History Styles */
 .history-item {
 cursor: pointer;
 }
 .history-item:hover {
-background-color: #f5f5f5;
+background-color: var(--hover-bg);
 }
 .session-details {
 margin-top: 1rem;
@@ -174,29 +190,12 @@ color: #666;
 .filter-controls {
 margin-bottom: 1rem;
 }
-select {
-padding: 0.5rem;
-border: 1px solid var(--border-color);
-border-radius: 4px;
-}
-@media (max-width: 768px) {
-.button {
-width: 100%;
-margin-bottom: 0.5rem;
-}
-.flex-between {
-flex-direction: column;
-align-items: stretch;
-}
-.modal-content {
-width: 95%;
-margin: 10% auto;
-}
+/* Checklist Styles */
 .checklist-container {
 margin-top: 1rem;
 border: 1px solid #ddd;
 border-radius: 8px;
-background-color: #f9f9f9;
+background-color: var(--light-bg);
 padding: 1rem;
 max-height: 400px;
 }
@@ -236,7 +235,7 @@ margin-right: 8px;
 .checklist-section-header {
 font-weight: bold;
 padding: 5px;
-background-color: #f0f0f0;
+background-color: var(--header-bg);
 border-radius: 4px;
 margin-top: 8px;
 position: sticky;
@@ -249,7 +248,7 @@ margin-bottom: 10px;
 .group-header {
 font-weight: bold;
 padding: 5px;
-background-color: #f0f0f0;
+background-color: var(--header-bg);
 border-radius: 4px;
 cursor: pointer;
 display: flex;
@@ -265,14 +264,33 @@ align-items: center;
 padding: 3px;
 }
 .student-item:hover {
-background-color: #f5f5f5;
+background-color: var(--hover-bg);
 }
 .student-checkbox {
 margin-right: 10px;
 }
-.button-small {
-padding: 6px 12px;
-font-size: 14px;
+/* Form Group Styles */
+.form-group {
+margin-bottom: 1rem;
+}
+.form-group label {
+display: block;
+margin-bottom: 0.5rem;
+font-weight: bold;
+}
+/* Mobile Styles */
+@media (max-width: 768px) {
+.button {
+width: 100%;
+margin-bottom: 0.5rem;
+}
+.flex-between {
+flex-direction: column;
+align-items: stretch;
+}
+.modal-content {
+width: 95%;
+margin: 10% auto;
 }
 }
 </style>
@@ -296,7 +314,7 @@ font-size: 14px;
 <div class="button-group">
 <button id="startSessionBtn" class="button">Start New Session</button>
 <button id="endSessionBtn" class="button" disabled>End Session</button>
-<button id="addManualEntryBtn" class="button button-secondary" style="display: none;">Add Manual Entry</button>
+<button id="addManualEntryBtn" class="button button-secondary" style="display: none;">Add Custom Entry</button>
 </div>
 <div id="sessionInfo" style="display: none;">
 <p><strong>Location:</strong> <span id="currentLocation">-</span></p>
@@ -305,7 +323,7 @@ font-size: 14px;
 </div>
 <div class="scanner-container">
 <div id="scanner-placeholder" style="text-align: center; padding: 2rem;">
-<p>Click "Start Scanning Session" to begin scanning QR codes.</p>
+<p>Click "Start New Session" to begin scanning QR codes.</p>
 </div>
 <video id="video" style="display: none;"></video>
 </div>
@@ -327,7 +345,7 @@ font-size: 14px;
 </div>
 <div id="checklist" class="tab-content">
 <div class="card">
-<h2>Student Selection</h2>
+<h2>Student Selector</h2>
 <div class="flex-between">
 <div class="button-group">
 <button id="startChecklistSessionBtn" class="button">Start New Session</button>
@@ -338,6 +356,9 @@ font-size: 14px;
 <p><strong>Location:</strong> <span id="checklistLocation">-</span></p>
 <p><strong>Started:</strong> <span id="checklistDateTime">-</span></p>
 </div>
+</div>
+<div id="checklist-placeholder" style="text-align: center; padding: 2rem;">
+<p>Click "Start New Session" to begin selecting students.</p>
 </div>
 <div class="checklist-container" style="display: none;">
 <div class="checklist-header">
@@ -464,27 +485,32 @@ font-size: 14px;
 </div>
 </div>
 </div>
+<!-- Modal for Manual Entry -->
 <div id="manualEntryModal" class="modal">
 <div class="modal-content">
 <span class="close" id="closeManualEntryBtn">&times;</span>
 <h2>Enter Student ID Manually</h2>
+<div class="form-group">
 <p>Please enter the student ID:</p>
 <input type="text" id="manualIdInput" placeholder="e.g., S12345678">
+</div>
 <button id="confirmManualEntryBtn" class="button">Add Entry</button>
 </div>
 </div>
 <!-- Modal for Starting Session -->
 <div id="sessionModal" class="modal">
 <div class="modal-content">
-<span class="close" id="closeSessionBtn">&times;</span>  <!-- Added ID here -->
-<h2>Start New Scanning Session</h2>
+<span class="close" id="closeSessionBtn">&times;</span>
+<h2>Start New Session</h2>
+<div class="form-group">
 <p>Enter a location for this scanning session:</p>
 <input type="text" id="locationInput" placeholder="e.g., Morgue, Histology Lab, Biochemistry Lecture Hall">
-<p>This will help you identify and organize your scans.</p>
+</div>
 <button id="confirmSessionBtn" class="button">Start Now</button>
 </div>
 </div>
-<div id="customEntryModal" class="modal" style="display: none;">
+<!-- Modal for Custom Entry -->
+<div id="customEntryModal" class="modal">
 <div class="modal-content">
 <span class="close" id="closeCustomEntryBtn">&times;</span>
 <h2>Add Custom Student ID</h2>
@@ -495,31 +521,17 @@ font-size: 14px;
 <button id="confirmCustomEntryBtn" class="button">Add Student</button>
 </div>
 </div>
-<div id="backup" class="tab-content">
-<div class="card">
-<h2>Backup Controls</h2>
-<div class="backup-status">
-<p><strong>Connection Status:</strong> <span id="connectionStatus">Checking...</span></p>
-<p><strong>Last Backup:</strong> <span id="lastBackupTime">Never</span></p>
-</div>
-<div class="backup-controls">
-<button id="backupBtn" class="button">Backup Now</button>
-<p><small>Note: When online, backups automatically occurs at app startup and when sessions end. If you need to manually backup the files, press the button above.</small></p>
-</div>
-</div>
-</div>
-</div>
 <!-- Checklist Session Modal -->
 <div id="checklistModal" class="modal">
 <div class="modal-content">
 <span class="close" id="closeChecklistModalBtn">&times;</span>
-<h2>Start Checklist Session</h2>
+<h2>Start New Session</h2>
 <div class="form-group">
-<label for="checklistLocationInput">Location:</label>
-<input type="text" id="checklistLocationInput" placeholder="Enter location">
+<p>Enter a location for this scanning session:</p>
+<input type="text" id="checklistLocationInput" placeholder="e.g., Morgue, Histology Lab, Biochemistry Lecture Hall">
 </div>
 <div class="modal-actions">
-<button id="confirmChecklistBtn" class="primary-btn">Start Session</button>
+<button id="confirmChecklistBtn" class="button">Start Session</button>
 </div>
 </div>
 </div>
@@ -2121,13 +2133,18 @@ if (studentsData.length === 0) {
 studentsChecklist.innerHTML = '<p class="no-data-message">No student data found. Please make sure students_ids.xlsx is in the correct location.</p>';
 return;
 }
-// Group students by year and group
+// Debug the first student object to see the actual structure
+console.log("Sample student data structure:", studentsData[0]);
+// Group students by year and group - with more flexible property access
 const grouped = {};
 studentsData.forEach(student => {
-const year = student.year || 'Unknown';
-const group = student.group || 'Unknown';
-const id = student.id || student['students id'] || student['student id'] || student['Student ID'];
-if (!id) return; // Skip entries without ID
+// Try different possible property names for year, group and id
+const year = student.Year || student.year || student.YEAR || 'Unknown';
+const group = student.Group || student.group || student.GROUP || 'Unknown';
+const id = student.ID || student.Id || student.id || 
+student['Student ID'] || student['student id'] || 
+student['STUDENT ID'] || student['students id'] || 'Unknown';
+if (id === 'Unknown') return; // Skip entries without ID
 const key = `${year}_${group}`;
 if (!grouped[key]) {
 grouped[key] = {
@@ -2139,12 +2156,27 @@ students: []
 grouped[key].students.push(id);
 });
 // Sort by year and group
-const sortedKeys = Object.keys(grouped).sort();
+const sortedKeys = Object.keys(grouped).sort((a, b) => {
+const [yearA, groupA] = a.split('_');
+const [yearB, groupB] = b.split('_');
+// First sort by year
+if (yearA !== yearB) {
+// Handle numeric years (if they are numbers)
+if (!isNaN(yearA) && !isNaN(yearB)) {
+return parseInt(yearA) - parseInt(yearB);
+}
+// Otherwise sort alphabetically
+return yearA.localeCompare(yearB);
+}
+// Then sort by group
+return groupA.localeCompare(groupB);
+});
 // Create the HTML structure
 sortedKeys.forEach(key => {
 const data = grouped[key];
 // Create section header
 const sectionHeader = document.createElement('div');
+sectionHeader.className = 'checklist-section-header';
 sectionHeader.style.fontWeight = 'bold';
 sectionHeader.style.padding = '5px';
 sectionHeader.style.backgroundColor = '#f0f0f0';
@@ -2161,6 +2193,7 @@ studentList.style.marginBottom = '15px';
 studentList.style.paddingLeft = '15px';
 data.students.forEach(id => {
 const checkboxContainer = document.createElement('div');
+checkboxContainer.className = 'checkbox-container';
 checkboxContainer.style.display = 'flex';
 checkboxContainer.style.alignItems = 'center';
 checkboxContainer.style.margin = '3px 0';
@@ -2182,6 +2215,8 @@ studentList.appendChild(checkboxContainer);
 });
 studentsChecklist.appendChild(studentList);
 });
+// Update the filter based on current search term (if any)
+filterStudents();
 }
 // Handle student selection
 function handleStudentSelection(checkbox) {
