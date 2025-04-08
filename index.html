@@ -2020,33 +2020,61 @@ return message;
 }
 // Load students data from the Excel file
 function loadStudentsData() {
-console.log("Loading students data from Excel...");
-// Try to fetch the Excel file
-fetch('students_ids.xlsx')
-.then(response => {
-if (!response.ok) {
-throw new Error('Failed to load students data file');
-}
-return response.arrayBuffer();
-})
-.then(buffer => {
-// Parse the Excel file using XLSX library
-const data = new Uint8Array(buffer);
-const workbook = XLSX.read(data, { type: 'array' });
-// Get the first sheet
-const firstSheetName = workbook.SheetNames[0];
-const worksheet = workbook.Sheets[firstSheetName];
-// Convert to JSON
-const jsonData = XLSX.utils.sheet_to_json(worksheet);
-// Store the data
-studentsData = jsonData;
-console.log("Students data loaded:", studentsData.length, "records");
-})
-.catch(error => {
-console.error("Error loading students data:", error);
-// Create empty array if file doesn't exist
-studentsData = [];
-});
+    console.log("Loading students data from Excel...");
+    // Try to fetch the Excel file
+    fetch('students_ids.xlsx')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to load students data file');
+            }
+            return response.arrayBuffer();
+        })
+        .then(buffer => {
+            // Parse the Excel file using XLSX library
+            const data = new Uint8Array(buffer);
+            const workbook = XLSX.read(data, { type: 'array' });
+            // Get the first sheet
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            // Convert to JSON
+            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+            
+            // Process the data to ensure consistent property names
+            studentsData = jsonData.map(student => {
+                const processedStudent = {};
+                
+                // Loop through all properties to find year, group and ID regardless of case
+                Object.keys(student).forEach(key => {
+                    const lowerKey = key.toLowerCase();
+                    
+                    if (lowerKey.includes('year')) {
+                        processedStudent.year = student[key];
+                    }
+                    
+                    if (lowerKey.includes('group')) {
+                        processedStudent.group = student[key];
+                    }
+                    
+                    if (lowerKey.includes('id')) {
+                        processedStudent.id = student[key];
+                    }
+                });
+                
+                return processedStudent;
+            });
+            
+            console.log("Students data loaded:", studentsData.length, "records");
+            
+            // If checklist is active, refresh the view
+            if (checklistActiveSession) {
+                populateStudentChecklist();
+            }
+        })
+        .catch(error => {
+            console.error("Error loading students data:", error);
+            // Create empty array if file doesn't exist
+            studentsData = [];
+        });
 }
 // Start a new checklist session
 function startChecklistSession() {
@@ -2121,79 +2149,221 @@ createNewChecklistSession(location);
 }
 // Populate the student checklist from the loaded data
 function populateStudentChecklist() {
-studentsChecklist.innerHTML = '';
-// Create a fixed-height container div for scrolling
-studentsChecklist.style.height = '300px';
-studentsChecklist.style.overflowY = 'auto';
-studentsChecklist.style.border = '1px solid #ddd';
-studentsChecklist.style.borderRadius = '4px';
-studentsChecklist.style.padding = '0.5rem';
-studentsChecklist.style.backgroundColor = 'white';
-if (studentsData.length === 0) {
-studentsChecklist.innerHTML = '<p class="no-data-message">No student data found. Please make sure students_ids.xlsx is in the correct location.</p>';
-return;
-}
-// Group students by year and group
-const grouped = {};
-studentsData.forEach(student => {
-const year = student.year || 'Unknown';
-const group = student.group || 'Unknown';
-const id = student.id || student['students id'] || student['student id'] || student['Student ID'];
-if (!id) return; // Skip entries without ID
-const key = `${year}_${group}`;
-if (!grouped[key]) {
-grouped[key] = {
-year: year,
-group: group,
-students: []
-};
-}
-grouped[key].students.push(id);
-});
-// Sort by year and group
-const sortedKeys = Object.keys(grouped).sort();
-// Create the HTML structure
-sortedKeys.forEach(key => {
-const data = grouped[key];
-// Create section header
-const sectionHeader = document.createElement('div');
-sectionHeader.style.fontWeight = 'bold';
-sectionHeader.style.padding = '5px';
-sectionHeader.style.backgroundColor = '#f0f0f0';
-sectionHeader.style.borderRadius = '4px';
-sectionHeader.style.marginTop = '8px';
-sectionHeader.style.position = 'sticky';
-sectionHeader.style.top = '0';
-sectionHeader.style.zIndex = '1';
-sectionHeader.textContent = `Year: ${data.year}, Group: ${data.group}`;
-studentsChecklist.appendChild(sectionHeader);
-// Create student checkboxes
-const studentList = document.createElement('div');
-studentList.style.marginBottom = '15px';
-studentList.style.paddingLeft = '15px';
-data.students.forEach(id => {
-const checkboxContainer = document.createElement('div');
-checkboxContainer.style.display = 'flex';
-checkboxContainer.style.alignItems = 'center';
-checkboxContainer.style.margin = '3px 0';
-const checkbox = document.createElement('input');
-checkbox.type = 'checkbox';
-checkbox.id = `student_${id}`;
-checkbox.value = id;
-checkbox.dataset.id = id;
-checkbox.style.marginRight = '8px';
-const label = document.createElement('label');
-label.setAttribute('for', `student_${id}`);
-label.textContent = id;
-checkbox.addEventListener('change', function() {
-handleStudentSelection(this);
-});
-checkboxContainer.appendChild(checkbox);
-checkboxContainer.appendChild(label);
-studentList.appendChild(checkboxContainer);
-});
-studentsChecklist.appendChild(studentList);
-});
+    studentsChecklist.innerHTML = '';
+    
+    // Create a fixed-height container div for scrolling
+    studentsChecklist.style.height = '300px';
+    studentsChecklist.style.overflowY = 'auto';
+    studentsChecklist.style.border = '1px solid #ddd';
+    studentsChecklist.style.borderRadius = '4px';
+    studentsChecklist.style.padding = '0.5rem';
+    studentsChecklist.style.backgroundColor = 'white';
+    
+    if (studentsData.length === 0) {
+        studentsChecklist.innerHTML = '<p class="no-data-message">No student data found. Please make sure students_ids.xlsx is in the correct location.</p>';
+        return;
+    }
+    
+    // Create dropdown navigation
+    const navContainer = document.createElement('div');
+    navContainer.className = 'checklist-navigation';
+    navContainer.style.marginBottom = '15px';
+    navContainer.style.display = 'flex';
+    navContainer.style.gap = '10px';
+    
+    // Create year filter
+    const yearSelect = document.createElement('select');
+    yearSelect.id = 'yearFilter';
+    yearSelect.style.padding = '5px';
+    yearSelect.style.borderRadius = '4px';
+    yearSelect.style.flex = '1';
+    
+    // Create group filter
+    const groupSelect = document.createElement('select');
+    groupSelect.id = 'groupFilter';
+    groupSelect.style.padding = '5px';
+    groupSelect.style.borderRadius = '4px';
+    groupSelect.style.flex = '1';
+    
+    // Group students by year and group
+    const grouped = {};
+    const years = new Set();
+    const groups = new Set();
+    
+    studentsData.forEach(student => {
+        // Check all possible property names for year, group and id
+        const year = student.Year || student.year || 'Unknown';
+        const group = student.Group || student.group || 'Unknown';
+        const id = student.ID || student.Id || student.id || 
+                  student['students id'] || student['student id'] || 
+                  student['Student ID'] || student['student ID'] || 
+                  student['Students ID'];
+        
+        if (!id) return; // Skip entries without ID
+        
+        // Add to sets for filters
+        years.add(year);
+        groups.add(group);
+        
+        const key = `${year}_${group}`;
+        if (!grouped[key]) {
+            grouped[key] = {
+                year: year,
+                group: group,
+                students: []
+            };
+        }
+        grouped[key].students.push({
+            id: id,
+            year: year,
+            group: group
+        });
+    });
+    
+    // Populate year filter
+    yearSelect.innerHTML = '<option value="all">All Years</option>';
+    Array.from(years).sort().forEach(year => {
+        const option = document.createElement('option');
+        option.value = year;
+        option.textContent = year;
+        yearSelect.appendChild(option);
+    });
+    
+    // Populate group filter
+    groupSelect.innerHTML = '<option value="all">All Groups</option>';
+    Array.from(groups).sort().forEach(group => {
+        const option = document.createElement('option');
+        option.value = group;
+        option.textContent = group;
+        groupSelect.appendChild(option);
+    });
+    
+    // Add filters to navigation
+    const yearLabel = document.createElement('label');
+    yearLabel.textContent = 'Year: ';
+    yearLabel.htmlFor = 'yearFilter';
+    yearLabel.style.fontWeight = 'bold';
+    
+    const groupLabel = document.createElement('label');
+    groupLabel.textContent = 'Group: ';
+    groupLabel.htmlFor = 'groupFilter';
+    groupLabel.style.fontWeight = 'bold';
+    
+    const yearContainer = document.createElement('div');
+    yearContainer.style.display = 'flex';
+    yearContainer.style.alignItems = 'center';
+    yearContainer.style.gap = '5px';
+    yearContainer.appendChild(yearLabel);
+    yearContainer.appendChild(yearSelect);
+    
+    const groupContainer = document.createElement('div');
+    groupContainer.style.display = 'flex';
+    groupContainer.style.alignItems = 'center';
+    groupContainer.style.gap = '5px';
+    groupContainer.appendChild(groupLabel);
+    groupContainer.appendChild(groupSelect);
+    
+    navContainer.appendChild(yearContainer);
+    navContainer.appendChild(groupContainer);
+    
+    // Add navigation to checklist
+    studentsChecklist.appendChild(navContainer);
+    
+    // Create a container for student checkboxes
+    const checklistContent = document.createElement('div');
+    checklistContent.id = 'checklistContent';
+    studentsChecklist.appendChild(checklistContent);
+    
+    // Function to update checklist content based on filters
+    function updateChecklistContent() {
+        const selectedYear = yearSelect.value;
+        const selectedGroup = groupSelect.value;
+        
+        checklistContent.innerHTML = '';
+        
+        // Sort by year and group
+        const sortedKeys = Object.keys(grouped).sort();
+        
+        // Filter and create the HTML structure
+        sortedKeys.forEach(key => {
+            const data = grouped[key];
+            
+            // Apply filters
+            if ((selectedYear === 'all' || data.year === selectedYear) && 
+                (selectedGroup === 'all' || data.group === selectedGroup)) {
+                
+                // Create section header
+                const sectionHeader = document.createElement('div');
+                sectionHeader.className = 'checklist-section-header';
+                sectionHeader.style.fontWeight = 'bold';
+                sectionHeader.style.padding = '5px';
+                sectionHeader.style.backgroundColor = '#f0f0f0';
+                sectionHeader.style.borderRadius = '4px';
+                sectionHeader.style.marginTop = '8px';
+                sectionHeader.style.position = 'sticky';
+                sectionHeader.style.top = '0';
+                sectionHeader.style.zIndex = '1';
+                sectionHeader.textContent = `Year: ${data.year}, Group: ${data.group}`;
+                checklistContent.appendChild(sectionHeader);
+                
+                // Create student checkboxes
+                const studentList = document.createElement('div');
+                studentList.className = 'student-list';
+                studentList.style.marginBottom = '15px';
+                studentList.style.paddingLeft = '15px';
+                
+                data.students.forEach(student => {
+                    const checkboxContainer = document.createElement('div');
+                    checkboxContainer.className = 'checkbox-container';
+                    checkboxContainer.style.display = 'flex';
+                    checkboxContainer.style.alignItems = 'center';
+                    checkboxContainer.style.margin = '3px 0';
+                    
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.id = `student_${student.id}`;
+                    checkbox.value = student.id;
+                    checkbox.dataset.id = student.id;
+                    checkbox.style.marginRight = '8px';
+                    
+                    // If this student is already selected, check the box
+                    if (selectedStudents.has(student.id)) {
+                        checkbox.checked = true;
+                    }
+                    
+                    const label = document.createElement('label');
+                    label.setAttribute('for', `student_${student.id}`);
+                    label.textContent = student.id;
+                    
+                    checkbox.addEventListener('change', function() {
+                        handleStudentSelection(this);
+                    });
+                    
+                    checkboxContainer.appendChild(checkbox);
+                    checkboxContainer.appendChild(label);
+                    studentList.appendChild(checkboxContainer);
+                });
+                
+                checklistContent.appendChild(studentList);
+            }
+        });
+        
+        // Show message if no students match filter
+        if (checklistContent.children.length === 0) {
+            const noMatchMessage = document.createElement('p');
+            noMatchMessage.style.padding = '10px';
+            noMatchMessage.style.textAlign = 'center';
+            noMatchMessage.textContent = 'No students match the selected filters.';
+            checklistContent.appendChild(noMatchMessage);
+        }
+    }
+    
+    // Add event listeners to filters
+    yearSelect.addEventListener('change', updateChecklistContent);
+    groupSelect.addEventListener('change', updateChecklistContent);
+    
+    // Initialize checklist content
+    updateChecklistContent();
 }
 // Handle student selection
 function handleStudentSelection(checkbox) {
