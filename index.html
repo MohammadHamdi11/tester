@@ -645,17 +645,6 @@ const AUTO_BACKUP_ENABLED_KEY = 'qrScannerAutoBackupEnabled';
 const GITHUB_TOKEN_PREFIX = 'github_pat_';
 const GITHUB_TOKEN_SUFFIX = '11BREVRNQ0XVpxHicj3xsl_vAfICFbNYso7tpxkuw9yZqcOG4FHzacfgkpOjBJE51HR3WGTNJTaUIfxSWg';
 //========================================================================================================== GITHUB BACKUP FUNCTIONS ========//
-// Check if the device is iOS
-function isIOSDevice() {
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-}
-// Normalize path to handle iOS differences
-function normalizePath(path) {
-  // Convert to string if not already
-  const pathStr = String(path);
-  // Trim whitespace, remove leading/trailing slashes, normalize internal double slashes
-  return pathStr.trim().replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/');
-}
 // Check internet connection status
 function updateConnectionStatus() {
 if (navigator.onLine) {
@@ -680,27 +669,22 @@ autoBackupStatus.style.color = '#f44336';
 }
 // Get GitHub token by combining prefix and suffix
 function getGitHubToken() {
-  // First try to get from localStorage in case user manually set it
-  const storedToken = localStorage.getItem(GITHUB_TOKEN_KEY);
-  if (storedToken && storedToken.trim() !== '') {
-    console.log('Using token from localStorage');
-    return storedToken.trim();
-  }
-  
-  // If no stored token, use the hardcoded one
-  console.log('Using hardcoded token');
-  const combinedToken = (GITHUB_TOKEN_PREFIX + GITHUB_TOKEN_SUFFIX).trim();
-  
-  // Debug log token length without revealing actual token
-  console.log(`Token length: ${combinedToken.length}`);
-  console.log(`Token format: starts with ${combinedToken.substring(0,4)}, ends with ${combinedToken.substring(combinedToken.length-4)}`);
-  
-  // Basic validation check
-  if (combinedToken.length < 30) {
-    console.warn('Warning: Token appears to be too short or malformed');
-  }
-  
-  return combinedToken;
+// First try to get from localStorage in case user manually set it
+const storedToken = localStorage.getItem(GITHUB_TOKEN_KEY);
+if (storedToken && storedToken.trim() !== '') {
+console.log('Using token from localStorage');
+return storedToken.trim();
+}
+// If no stored token, use the hardcoded one
+console.log('Using hardcoded token');
+const combinedToken = (GITHUB_TOKEN_PREFIX + GITHUB_TOKEN_SUFFIX).trim();
+// Debug log token length without revealing actual token
+console.log(`Token length: ${combinedToken.length}`);
+// Basic validation check
+if (combinedToken.length < 30) {
+console.warn('Warning: Token appears to be too short or malformed');
+}
+return combinedToken;
 }
 // Save GitHub token to local storage
 async function saveGitHubToken() {
@@ -872,305 +856,262 @@ return false;
 }
 // Backup to GitHub
 async function backupToGitHub(isAutoBackup = false, customFileName = null, workbook = null) {
-  if (!navigator.onLine) {
-    if (!isAutoBackup) {
-      alert('Cannot backup: You are offline.');
-    }
-    return;
-  }
-  
-  // Get token from combined hardcoded values or localStorage
-  const token = getGitHubToken();
-  if (!token) {
-    if (!isAutoBackup) {
-      alert('No GitHub token available.');
-    }
-    return;
-  }
-  
-  // Check token format
-  checkTokenFormat();
-  
-  try {
-    backupInProgress = true;
-    if (!isAutoBackup && backupBtn) {
-      backupBtn.disabled = true;
-      backupBtn.textContent = 'Backing up...';
-    }
-    
-    // Create filename with date if not provided
-    const fileName = customFileName || `qr_scanner_backup_${formatDateTimeForFile(new Date())}.xlsx`;
-    
-    // Create workbook if not provided
-    if (!workbook) {
-      workbook = prepareDataForBackup();
-    }
-    
-    // Convert workbook to base64
-    const excelData = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
-    
-    // Repository information - ensure consistent string handling
-    const repoOwner = String(DEFAULT_GITHUB_OWNER).trim();
-    const repoName = String(DEFAULT_GITHUB_REPO).trim();
-    
-    // Use our new normalization function
-    const filePath = normalizePath(DEFAULT_GITHUB_PATH);
-    const branchName = String(DEFAULT_GITHUB_BRANCH).trim();
-    
-    // Debug output with string representations to catch invisible characters
-    console.log(`Repository owner (${repoOwner.length} chars):`, JSON.stringify(repoOwner));
-    console.log(`Repository name (${repoName.length} chars):`, JSON.stringify(repoName));
-    console.log(`File path (${filePath.length} chars):`, JSON.stringify(filePath));
-    console.log(`Branch name (${branchName.length} chars):`, JSON.stringify(branchName));
-    console.log(`File name: ${fileName}`);
-    console.log(`Is iOS device: ${isIOSDevice()}`);
-    
-    // First, check if the repository exists and is accessible
-    const repoCheckUrl = `https://api.github.com/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}`;
-    console.log(`Checking repository: ${repoCheckUrl}`);
-    
-    const repoCheckResponse = await fetch(repoCheckUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `token ${token}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'QRScannerApp/MobileClient'
-      }
-    });
-    
-    if (!repoCheckResponse.ok) {
-      const repoErrorData = await repoCheckResponse.json();
-      throw new Error(`Repository check failed: ${repoErrorData.message} (HTTP ${repoCheckResponse.status})`);
-    }
-    
-    // Construct the file path differently for iOS vs other platforms
-    let fullFilePath;
-    if (isIOSDevice()) {
-      // Simpler path handling for iOS
-      fullFilePath = filePath ? `${filePath}/${fileName}` : fileName;
-      // Ensure no double slashes
-      fullFilePath = fullFilePath.replace(/\/+/g, '/');
-    } else {
-      // Original path handling for other platforms
-      const filePathComponent = filePath ? `${filePath}/` : '';
-      fullFilePath = `${filePathComponent}${fileName}`;
-    }
-    
-    console.log(`Full file path: ${JSON.stringify(fullFilePath)}`);
-    
-    // Check for existing file to get SHA
-    let sha = null;
-    const fileCheckUrl = `https://api.github.com/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/contents/${encodeURIComponent(fullFilePath)}?ref=${encodeURIComponent(branchName)}`;
-    console.log(`Checking file: ${fileCheckUrl}`);
-    
-    try {
-      const checkResponse = await fetch(fileCheckUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `token ${token}`,
-          'Accept': 'application/vnd.github.v3+json',
-          'User-Agent': 'QRScannerApp/MobileClient'
-        }
-      });
-      
-      if (checkResponse.ok) {
-        const fileInfo = await checkResponse.json();
-        sha = fileInfo.sha;
-        console.log(`File exists, SHA: ${sha}`);
-      } else {
-        console.log(`File does not exist (status ${checkResponse.status}). Creating new file.`);
-      }
-      
-    } catch (error) {
-      console.log('Error checking file existence:', error);
-    }
-    
-    // Prepare the request body
-    const requestBody = {
-      message: `Backup QR Scanner data - ${new Date().toLocaleString()}`,
-      content: excelData,
-      branch: branchName
-    };
-    
-    if (sha) {
-      requestBody.sha = sha;
-    }
-    
-    // Now create or update the file
-    const putUrl = `https://api.github.com/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/contents/${encodeURIComponent(fullFilePath)}`;
-    console.log(`Sending PUT request to: ${putUrl}`);
-    
-    const response = await fetch(putUrl, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `token ${token}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'QRScannerApp/MobileClient'
-      },
-      body: JSON.stringify(requestBody)
-    });
-    
-    if (response.ok) {
-      // Update last backup time
-      const now = new Date().toISOString();
-      localStorage.setItem(LAST_BACKUP_TIME_KEY, now);
-      localStorage.setItem(LAST_BACKUP_SESSIONS_KEY, sessions.length.toString());
-      updateLastBackupTimeDisplay();
-      
-      if (!isAutoBackup) {
-        alert('Backup completed successfully!');
-      }
-    } else {
-      const errorData = await response.json();
-      const status = response.status;
-      throw new Error(`GitHub API error (HTTP ${status}): ${errorData.message}. Details: ${JSON.stringify(errorData)}`);
-    }
-    
-  } catch (error) {
-    console.error('GitHub backup error:', error);
-    // More informative error message
-    const errorMessage = `Backup failed: ${error.message}. 
+if (!navigator.onLine) {
+if (!isAutoBackup) {
+alert('Cannot backup: You are offline.');
+}
+return;
+}
+// Get token from combined hardcoded values or localStorage
+const token = getGitHubToken();
+if (!token) {
+if (!isAutoBackup) {
+alert('No GitHub token available.');
+}
+return;
+}
+// Check token format
+checkTokenFormat();
+try {
+backupInProgress = true;
+if (!isAutoBackup && backupBtn) {
+backupBtn.disabled = true;
+backupBtn.textContent = 'Backing up...';
+}
+// Create filename with date if not provided
+const fileName = customFileName || `qr_scanner_backup_${formatDateTimeForFile(new Date())}.xlsx`;
+// Create workbook if not provided
+if (!workbook) {
+workbook = prepareDataForBackup();
+}
+// Convert workbook to base64
+const excelData = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
+// Repository information - ensure consistent string handling
+const repoOwner = DEFAULT_GITHUB_OWNER.toString().trim();
+const repoName = DEFAULT_GITHUB_REPO.toString().trim();
+// Normalize path by removing leading/trailing slashes
+const filePath = DEFAULT_GITHUB_PATH.toString().trim().replace(/^\/|\/$/g, '');
+const branchName = DEFAULT_GITHUB_BRANCH.toString().trim();
+// Log values for debugging on mobile
+console.log(`Repository owner: ${repoOwner}`);
+console.log(`Repository name: ${repoName}`);
+console.log(`File path: ${filePath}`);
+console.log(`Branch name: ${branchName}`);
+console.log(`File name: ${fileName}`);
+// First, check if the repository exists and is accessible
+const repoCheckUrl = `https://api.github.com/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}`;
+console.log(`Checking repository: ${repoCheckUrl}`);
+const repoCheckResponse = await fetch(repoCheckUrl, {
+method: 'GET',
+headers: {
+'Authorization': `token ${token}`,
+'Accept': 'application/vnd.github.v3+json',
+'User-Agent': 'QRScannerApp/MobileClient'
+}
+});
+if (!repoCheckResponse.ok) {
+const repoErrorData = await repoCheckResponse.json();
+throw new Error(`Repository check failed: ${repoErrorData.message} (HTTP ${repoCheckResponse.status})`);
+}
+// Consistently build the path components
+const directoryPath = filePath ? `${filePath}` : '';
+// Now check if the directory path exists
+let pathCheckUrl;
+if (directoryPath) {
+pathCheckUrl = `https://api.github.com/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/contents/${encodeURIComponent(directoryPath)}?ref=${encodeURIComponent(branchName)}`;
+console.log(`Checking directory path: ${pathCheckUrl}`);
+const pathCheckResponse = await fetch(pathCheckUrl, {
+method: 'GET',
+headers: {
+'Authorization': `token ${token}`,
+'Accept': 'application/vnd.github.v3+json',
+'User-Agent': 'QRScannerApp/MobileClient'
+}
+});
+if (!pathCheckResponse.ok) {
+console.log(`Directory path ${directoryPath} may not exist: ${pathCheckResponse.status}`);
+// For directories that don't exist, we need to handle this case
+// For now, we'll continue and let the PUT request handle it
+}
+}
+// Construct the complete file path
+const filePathComponent = directoryPath ? `${directoryPath}/` : '';
+const fullFilePath = `${filePathComponent}${fileName}`;
+console.log(`Full file path: ${fullFilePath}`);
+// Check for existing file to get SHA
+let sha = null;
+const fileCheckUrl = `https://api.github.com/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/contents/${encodeURIComponent(fullFilePath)}?ref=${encodeURIComponent(branchName)}`;
+console.log(`Checking file: ${fileCheckUrl}`);
+try {
+const checkResponse = await fetch(fileCheckUrl, {
+method: 'GET',
+headers: {
+'Authorization': `token ${token}`,
+'Accept': 'application/vnd.github.v3+json',
+'User-Agent': 'QRScannerApp/MobileClient'
+}
+});
+if (checkResponse.ok) {
+const fileInfo = await checkResponse.json();
+sha = fileInfo.sha;
+console.log(`File exists, SHA: ${sha}`);
+} else {
+console.log(`File does not exist (status ${checkResponse.status}). Creating new file.`);
+}
+} catch (error) {
+console.log('Error checking file existence:', error);
+}
+// Prepare the request body
+const requestBody = {
+message: `Backup QR Scanner data - ${new Date().toLocaleString()}`,
+content: excelData,
+branch: branchName
+};
+if (sha) {
+requestBody.sha = sha;
+}
+// Now create or update the file
+const putUrl = `https://api.github.com/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/contents/${encodeURIComponent(fullFilePath)}`;
+console.log(`Sending PUT request to: ${putUrl}`);
+const response = await fetch(putUrl, {
+method: 'PUT',
+headers: {
+'Authorization': `token ${token}`,
+'Content-Type': 'application/json',
+'Accept': 'application/vnd.github.v3+json',
+'User-Agent': 'QRScannerApp/MobileClient'
+},
+body: JSON.stringify(requestBody)
+});
+if (response.ok) {
+// Update last backup time
+const now = new Date().toISOString();
+localStorage.setItem(LAST_BACKUP_TIME_KEY, now);
+localStorage.setItem(LAST_BACKUP_SESSIONS_KEY, sessions.length.toString());
+updateLastBackupTimeDisplay();
+if (!isAutoBackup) {
+alert('Backup completed successfully!');
+}
+} else {
+const errorData = await response.json();
+const status = response.status;
+throw new Error(`GitHub API error (HTTP ${status}): ${errorData.message}. Details: ${JSON.stringify(errorData)}`);
+}
+} catch (error) {
+console.error('GitHub backup error:', error);
+// More informative error message
+const errorMessage = `Backup failed: ${error.message}. 
 Please check: 
 1. Your GitHub token has correct permissions
 2. The repository exists and is accessible
 3. You have write access to the repository`;
-    
-    if (!isAutoBackup) {
-      alert(errorMessage);
-    }
-    
-  } finally {
-    backupInProgress = false;
-    if (!isAutoBackup && backupBtn) {
-      backupBtn.disabled = false;
-      backupBtn.textContent = 'Backup Now';
-    }
-  }
+if (!isAutoBackup) {
+alert(errorMessage);
+}
+} finally {
+backupInProgress = false;
+if (!isAutoBackup && backupBtn) {
+backupBtn.disabled = false;
+backupBtn.textContent = 'Backup Now';
+}
+}
 }
 // Export Excel file to GitHub
 async function exportExcelToGitHub(fileName, workbook) {
-  return new Promise(async (resolve, reject) => {
-    if (!navigator.onLine) {
-      console.log('Cannot backup Excel: You are offline.');
-      reject(new Error('You are offline'));
-      return;
-    }
-    
-    // Get token from combined hardcoded values or localStorage
-    const token = getGitHubToken();
-    if (!token) {
-      console.log('GitHub token not available, skipping Excel backup.');
-      reject(new Error('No GitHub token available'));
-      return;
-    }
-    
-    try {
-      // Convert workbook to base64
-      const excelData = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
-      
-      // Repository information - ensure consistent string handling
-      const repoOwner = String(DEFAULT_GITHUB_OWNER).trim();
-      const repoName = String(DEFAULT_GITHUB_REPO).trim();
-      
-      // Use our new normalization function
-      const filePath = normalizePath(DEFAULT_GITHUB_PATH);
-      const branchName = String(DEFAULT_GITHUB_BRANCH).trim();
-      
-      // Enhanced logging for mobile debugging
-      console.log(`Export Excel to GitHub: Repository: ${repoOwner}/${repoName}`);
-      console.log(`File path: ${filePath}`);
-      console.log(`File name: ${fileName}`);
-      console.log(`Branch: ${branchName}`);
-      console.log(`Is iOS device: ${isIOSDevice()}`);
-      
-      // Construct the file path differently for iOS vs other platforms
-      let fullFilePath;
-      if (isIOSDevice()) {
-        // Simpler path handling for iOS
-        fullFilePath = filePath ? `${filePath}/${fileName}` : fileName;
-        // Ensure no double slashes
-        fullFilePath = fullFilePath.replace(/\/+/g, '/');
-      } else {
-        // Original path handling for other platforms
-        const filePathComponent = filePath ? `${filePath}/` : '';
-        fullFilePath = `${filePathComponent}${fileName}`;
-      }
-      
-      console.log(`Full file path: ${JSON.stringify(fullFilePath)}`);
-      
-      // First, try to get the SHA of the file if it exists
-      let sha = null;
-      const fileCheckUrl = `https://api.github.com/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/contents/${encodeURIComponent(fullFilePath)}?ref=${encodeURIComponent(branchName)}`;
-      console.log(`Checking file: ${fileCheckUrl}`);
-      
-      try {
-        const checkResponse = await fetch(fileCheckUrl, {
-          method: 'GET',
-          headers: {
-            'Authorization': `token ${token}`,
-            'Accept': 'application/vnd.github.v3+json',
-            'User-Agent': 'QRScannerApp/MobileClient'
-          }
-        });
-        
-        if (checkResponse.ok) {
-          const fileInfo = await checkResponse.json();
-          sha = fileInfo.sha;
-          console.log(`File exists, SHA: ${sha}`);
-        } else {
-          console.log(`File does not exist (status ${checkResponse.status}). Creating new file.`);
-        }
-        
-      } catch (error) {
-        console.log('Error checking file existence:', error);
-      }
-      
-      // Now create or update the file
-      const requestBody = {
-        message: `Export Excel data - ${new Date().toLocaleString()}`,
-        content: excelData,
-        branch: branchName
-      };
-      
-      if (sha) {
-        requestBody.sha = sha;
-      }
-      
-      const putUrl = `https://api.github.com/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/contents/${encodeURIComponent(fullFilePath)}`;
-      console.log(`Sending PUT request to: ${putUrl}`);
-      
-      const response = await fetch(putUrl, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `token ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/vnd.github.v3+json',
-          'User-Agent': 'QRScannerApp/MobileClient'
-        },
-        body: JSON.stringify(requestBody)
-      });
-      
-      if (response.ok) {
-        console.log('Excel file uploaded to GitHub successfully');
-        // Update last backup time and session count as this is now our main backup format
-        const now = new Date().toISOString();
-        localStorage.setItem(LAST_BACKUP_TIME_KEY, now);
-        localStorage.setItem(LAST_BACKUP_SESSIONS_KEY, sessions.length.toString());
-        updateLastBackupTimeDisplay();
-        resolve();
-      } else {
-        const errorData = await response.json();
-        const status = response.status;
-        console.error(`GitHub API error (HTTP ${status}): ${errorData.message}`);
-        reject(new Error(`GitHub API error (HTTP ${status}): ${errorData.message}`));
-      }
-      
-    } catch (error) {
-      console.error('GitHub Excel export error:', error);
-      reject(error);
-    }
-  });
+return new Promise(async (resolve, reject) => {
+if (!navigator.onLine) {
+console.log('Cannot backup Excel: You are offline.');
+reject(new Error('You are offline'));
+return;
+}
+// Get token from combined hardcoded values or localStorage
+const token = getGitHubToken();
+if (!token) {
+console.log('GitHub token not available, skipping Excel backup.');
+reject(new Error('No GitHub token available'));
+return;
+}
+try {
+// Convert workbook to base64
+const excelData = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
+// Repository information - ensure consistent string handling
+const repoOwner = DEFAULT_GITHUB_OWNER.toString().trim();
+const repoName = DEFAULT_GITHUB_REPO.toString().trim();
+// Normalize path by removing leading/trailing slashes
+const filePath = DEFAULT_GITHUB_PATH.toString().trim().replace(/^\/|\/$/g, '');
+const branchName = DEFAULT_GITHUB_BRANCH.toString().trim();
+// Enhanced logging for mobile debugging
+console.log(`Export Excel to GitHub: Repository: ${repoOwner}/${repoName}`);
+console.log(`File path: ${filePath}`);
+console.log(`File name: ${fileName}`);
+console.log(`Branch: ${branchName}`);
+// Consistently build the path components
+const filePathComponent = filePath ? `${filePath}/` : '';
+const fullFilePath = `${filePathComponent}${fileName}`;
+console.log(`Full file path: ${fullFilePath}`);
+// First, try to get the SHA of the file if it exists
+let sha = null;
+const fileCheckUrl = `https://api.github.com/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/contents/${encodeURIComponent(fullFilePath)}?ref=${encodeURIComponent(branchName)}`;
+console.log(`Checking file: ${fileCheckUrl}`);
+try {
+const checkResponse = await fetch(fileCheckUrl, {
+method: 'GET',
+headers: {
+'Authorization': `token ${token}`,
+'Accept': 'application/vnd.github.v3+json',
+'User-Agent': 'QRScannerApp/MobileClient'
+}
+});
+if (checkResponse.ok) {
+const fileInfo = await checkResponse.json();
+sha = fileInfo.sha;
+console.log(`File exists, SHA: ${sha}`);
+} else {
+console.log(`File does not exist (status ${checkResponse.status}). Creating new file.`);
+}
+} catch (error) {
+console.log('Error checking file existence:', error);
+}
+// Now create or update the file
+const requestBody = {
+message: `Export Excel data - ${new Date().toLocaleString()}`,
+content: excelData,
+branch: branchName
+};
+if (sha) {
+requestBody.sha = sha;
+}
+const putUrl = `https://api.github.com/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/contents/${encodeURIComponent(fullFilePath)}`;
+console.log(`Sending PUT request to: ${putUrl}`);
+const response = await fetch(putUrl, {
+method: 'PUT',
+headers: {
+'Authorization': `token ${token}`,
+'Content-Type': 'application/json',
+'Accept': 'application/vnd.github.v3+json',
+'User-Agent': 'QRScannerApp/MobileClient'
+},
+body: JSON.stringify(requestBody)
+});
+if (response.ok) {
+console.log('Excel file uploaded to GitHub successfully');
+// Update last backup time and session count as this is now our main backup format
+const now = new Date().toISOString();
+localStorage.setItem(LAST_BACKUP_TIME_KEY, now);
+localStorage.setItem(LAST_BACKUP_SESSIONS_KEY, sessions.length.toString());
+updateLastBackupTimeDisplay();
+resolve();
+} else {
+const errorData = await response.json();
+const status = response.status;
+console.error(`GitHub API error (HTTP ${status}): ${errorData.message}`);
+reject(new Error(`GitHub API error (HTTP ${status}): ${errorData.message}`));
+}
+} catch (error) {
+console.error('GitHub Excel export error:', error);
+reject(error);
+}
+});
 }
 // Validate GitHub token by checking access to the repository
 async function validateGitHubToken(token) {
