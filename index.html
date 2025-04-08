@@ -2133,18 +2133,13 @@ if (studentsData.length === 0) {
 studentsChecklist.innerHTML = '<p class="no-data-message">No student data found. Please make sure students_ids.xlsx is in the correct location.</p>';
 return;
 }
-// Debug the first student object to see the actual structure
-console.log("Sample student data structure:", studentsData[0]);
-// Group students by year and group - with more flexible property access
+// Group students by year and group
 const grouped = {};
 studentsData.forEach(student => {
-// Try different possible property names for year, group and id
-const year = student.Year || student.year || student.YEAR || 'Unknown';
-const group = student.Group || student.group || student.GROUP || 'Unknown';
-const id = student.ID || student.Id || student.id || 
-student['Student ID'] || student['student id'] || 
-student['STUDENT ID'] || student['students id'] || 'Unknown';
-if (id === 'Unknown') return; // Skip entries without ID
+const year = student.year || 'Unknown';
+const group = student.group || 'Unknown';
+const id = student.id || student['students id'] || student['student id'] || student['Student ID'];
+if (!id) return; // Skip entries without ID
 const key = `${year}_${group}`;
 if (!grouped[key]) {
 grouped[key] = {
@@ -2156,27 +2151,12 @@ students: []
 grouped[key].students.push(id);
 });
 // Sort by year and group
-const sortedKeys = Object.keys(grouped).sort((a, b) => {
-const [yearA, groupA] = a.split('_');
-const [yearB, groupB] = b.split('_');
-// First sort by year
-if (yearA !== yearB) {
-// Handle numeric years (if they are numbers)
-if (!isNaN(yearA) && !isNaN(yearB)) {
-return parseInt(yearA) - parseInt(yearB);
-}
-// Otherwise sort alphabetically
-return yearA.localeCompare(yearB);
-}
-// Then sort by group
-return groupA.localeCompare(groupB);
-});
+const sortedKeys = Object.keys(grouped).sort();
 // Create the HTML structure
 sortedKeys.forEach(key => {
 const data = grouped[key];
 // Create section header
 const sectionHeader = document.createElement('div');
-sectionHeader.className = 'checklist-section-header';
 sectionHeader.style.fontWeight = 'bold';
 sectionHeader.style.padding = '5px';
 sectionHeader.style.backgroundColor = '#f0f0f0';
@@ -2193,7 +2173,6 @@ studentList.style.marginBottom = '15px';
 studentList.style.paddingLeft = '15px';
 data.students.forEach(id => {
 const checkboxContainer = document.createElement('div');
-checkboxContainer.className = 'checkbox-container';
 checkboxContainer.style.display = 'flex';
 checkboxContainer.style.alignItems = 'center';
 checkboxContainer.style.margin = '3px 0';
@@ -2215,8 +2194,6 @@ studentList.appendChild(checkboxContainer);
 });
 studentsChecklist.appendChild(studentList);
 });
-// Update the filter based on current search term (if any)
-filterStudents();
 }
 // Handle student selection
 function handleStudentSelection(checkbox) {
