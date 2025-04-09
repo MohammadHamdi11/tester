@@ -29,7 +29,6 @@
 --shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 --shadow-strong: 0 4px 10px rgba(0, 0, 0, 0.2);
 --border-radius: 8px;
---transition-speed: 0.3s;
 }
 * {
 box-sizing: border-box;
@@ -155,7 +154,6 @@ border-radius: var(--border-radius);
 box-shadow: var(--shadow);
 padding: 1.5rem;
 margin-bottom: 1.5rem;
-transition: box-shadow var(--transition-speed);
 }
 .card:hover {
 box-shadow: var(--shadow-strong);
@@ -169,7 +167,6 @@ border-radius: 4px;
 padding: 0.75rem 1rem;
 cursor: pointer;
 font-size: 1rem;
-transition: background-color var(--transition-speed), transform 0.2s;
 text-align: center;
 display: inline-block;
 font-weight: 500;
@@ -227,7 +224,6 @@ cursor: pointer;
 border-bottom: 3px solid transparent;
 flex-shrink: 0;
 user-select: none;
-transition: all var(--transition-speed);
 position: relative;
 }
 .tab.active {
@@ -242,13 +238,6 @@ border-bottom: 3px solid #d0d0d0;
 .tab-content {
 display: none;
 animation: fadeIn 0.3s ease-in-out;
-}
-@keyframes fadeIn {
-from { opacity: 0; }
-to { opacity: 1; }
-}
-.tab-content.active {
-display: block;
 }
 /* Scanner Styles */
 #video {
@@ -321,7 +310,6 @@ float: right;
 cursor: pointer;
 font-size: 1.5rem;
 color: #777;
-transition: color var(--transition-speed);
 }
 .close:hover {
 color: var(--secondary-color);
@@ -336,7 +324,6 @@ padding: 0.75rem;
 margin: 0.5rem 0;
 border: 1px solid var(--border-color);
 border-radius: 4px;
-transition: border-color var(--transition-speed), box-shadow var(--transition-speed);
 font-size: 1rem;
 }
 input[type="text"]:focus, 
@@ -354,7 +341,6 @@ padding: 1rem;
 border: 1px solid #ddd;
 border-radius: var(--border-radius);
 margin-bottom: 0.5rem;
-transition: all var(--transition-speed);
 }
 .history-item:hover {
 background-color: var(--hover-bg);
@@ -409,7 +395,6 @@ padding: 8px 12px;
 border: 1px solid #ccc;
 border-radius: 4px;
 margin-right: 1rem;
-transition: border-color var(--transition-speed), box-shadow var(--transition-speed);
 }
 .search-input:focus {
 outline: none;
@@ -436,7 +421,6 @@ align-items: center;
 margin: 5px 0;
 padding: 3px;
 border-radius: 4px;
-transition: background-color var(--transition-speed);
 }
 .checkbox-container:hover {
 background-color: var(--hover-bg);
@@ -475,7 +459,6 @@ display: flex;
 justify-content: space-between;
 align-items: center;
 user-select: none;
-transition: background-color var(--transition-speed);
 }
 .group-header:hover {
 background-color: #e5e5e5;
@@ -490,7 +473,6 @@ display: flex;
 align-items: center;
 padding: 5px;
 border-radius: 4px;
-transition: background-color var(--transition-speed);
 }
 .student-item:hover {
 background-color: var(--hover-bg);
