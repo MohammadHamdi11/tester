@@ -263,10 +263,7 @@ cursor: pointer;
 font-size: 1.5rem;
 }
 /* Form Element Styles */
-input[type="text"], 
-input[type="email"], 
-input[type="password"], 
-select {
+input[type="text"], select {
 width: 100%;
 padding: 0.75rem;
 margin: 0.5rem 0;
@@ -378,12 +375,312 @@ margin-right: 10px;
 }
 /* Form Group Styles */
 .form-group {
-width: 100%;
 margin-bottom: 1rem;
-display: flex;
-flex-direction: column;
-align-items: center;
 }
+.form-group label {
+display: block;
+margin-bottom: 0.5rem;
+font-weight: bold;
+}
+/* Mobile Styles */
+@media (max-width: 768px) {
+.button {
+width: 100%;
+margin-bottom: 0.5rem;
+}
+.flex-between {
+flex-direction: column;
+align-items: stretch;
+}
+.modal-content {
+width: 95%;
+margin: 10% auto;
+}
+}
+</style>
+</head>
+<body>
+<!-- Sign-in overlay -->
+<div id="signin-overlay" class="signin-overlay">
+<div class="signin-container">
+<h2>Sign In</h2>
+<form id="signin-form">
+<div class="form-group">
+<label for="email">Email:</label>
+<input type="email" id="email" placeholder="Enter your email" required aria-required="true">
+</div>
+<div class="form-group">
+<label for="password">Password:</label>
+<input type="password" id="password" placeholder="Enter your password" required aria-required="true" autocomplete="current-password">
+</div>
+<button id="signin-button" type="submit" class="button signin-button">Sign In</button>
+</form>
+<p id="signin-error" class="signin-error" aria-live="polite"></p>
+<!-- Contact Info Section -->
+<div class="signin-contact-info">
+<hr>
+<h3>Need Help?</h3>
+<p>If you're having trouble signing in or need assistance, please contact support:</p>
+<a href="https://docs.google.com/forms/d/e/1FAIpQLSfOt-UrLB_rBF6NdpPHG2iTaB8B5AcZIfkkQfOTslpsAULRBg/viewform?usp=header" target="_blank" class="button button-small">Support Form</a>
+<p class="contact-note">We typically respond within 24-48 hours.</p>
+</div>
+</div>
+</div>
+<header>
+<h1>Attendance Recorder App</h1>
+</header>
+<div class="container">
+<div class="tabs">
+<div class="tab active" data-tab="scanner">Scanner</div>
+<div class="tab" data-tab="checklist">Selector</div>
+<div class="tab" data-tab="history">History</div>
+<div class="tab" data-tab="backup">Backup</div>
+<div class="tab" data-tab="about">About</div>
+</div>
+<div id="scanner" class="tab-content active">
+<div class="card">
+<h2>QR Code Scanner</h2>
+<div class="flex-between">
+<div class="button-group">
+<button id="startSessionBtn" class="button">Start New Session</button>
+<button id="endSessionBtn" class="button" disabled>End Session</button>
+<button id="addManualEntryBtn" class="button button-secondary" style="display: none;">Add Custom Entry</button>
+</div>
+<div id="sessionInfo" style="display: none;">
+<p><strong>Location:</strong> <span id="currentLocation">-</span></p>
+<p><strong>Started:</strong> <span id="currentDateTime">-</span></p>
+</div>
+</div>
+<div class="scanner-container">
+<div id="scanner-placeholder" style="text-align: center; padding: 2rem;">
+<p>Click "Start New Session" to begin scanning QR codes.</p>
+</div>
+<video id="video" style="display: none;"></video>
+</div>
+<div class="scan-results">
+<h3>Scanned QR Codes</h3>
+<p id="noScansMessage">No QR codes scanned yet.</p>
+<table id="resultTable" class="result-table" style="display: none;">
+<thead>
+<tr>
+<th>ID</th>
+<th>Content</th>
+<th>Time</th>
+</tr>
+</thead>
+<tbody id="resultBody"></tbody>
+</table>
+</div>
+</div>
+</div>
+<div id="checklist" class="tab-content">
+<div class="card">
+<h2>Student Selector</h2>
+<div class="flex-between">
+<div class="button-group">
+<button id="startChecklistSessionBtn" class="button">Start New Session</button>
+<button id="endChecklistSessionBtn" class="button" disabled>End Session</button>
+<button id="addCustomEntryBtn" class="button button-secondary" style="display: none;">Add Custom Entry</button>
+</div>
+<div id="checklistSessionInfo" style="display: none;">
+<p><strong>Location:</strong> <span id="checklistLocation">-</span></p>
+<p><strong>Started:</strong> <span id="checklistDateTime">-</span></p>
+</div>
+</div>
+<div id="checklist-placeholder" style="text-align: center; padding: 2rem;">
+<p>Click "Start New Session" to begin selecting students.</p>
+</div>
+<div class="checklist-container" style="display: none;">
+<div class="checklist-header">
+<input type="text" id="studentSearchInput" placeholder="Search for students..." class="search-input">
+<button id="closeChecklistBtn" class="button button-small">Close</button>
+</div>
+<div id="studentsChecklist" class="checklist-area">
+<!-- Students will be loaded here -->
+</div>
+</div>
+<div class="selection-results">
+<h3>Selected Students</h3>
+<p id="noSelectionsMessage">No students selected yet.</p>
+<table id="selectionTable" class="result-table" style="display: none;">
+<thead>
+<tr>
+<th>ID</th>
+<th>Content</th>
+<th>Time</th>
+</tr>
+</thead>
+<tbody id="selectionBody"></tbody>
+</table>
+</div>
+</div>
+</div>
+<div id="history" class="tab-content">
+<div class="card">
+<h2>Scanning History</h2>
+<div class="flex-between">
+<div>
+<button id="exportAllBtn" class="button">Export All History</button>
+</div>
+<div class="filter-controls">
+<select id="sortBy">
+<option value="date-desc">Date (Newest First)</option>
+<option value="date-asc">Date (Oldest First)</option>
+<option value="location">Location</option>
+</select>
+</div>
+</div>
+<div id="historyList">
+<p class="no-results">No scanning sessions found.</p>
+</div>
+<div id="sessionDetails" class="session-details" style="display: none;">
+<h3>Session Details</h3>
+<div class="flex-between">
+<div>
+<p><strong>Location:</strong> <span id="detailLocation">-</span></p>
+<p><strong>Date & Time:</strong> <span id="detailDateTime">-</span></p>
+<p><strong>Scans:</strong> <span id="detailCount">-</span></p>
+</div>
+<div>
+<button id="exportSessionBtn" class="button">Export Session</button>
+<button id="closeDetailsBtn" class="button button-secondary">Close Details</button>
+</div>
+</div>
+<table class="result-table">
+<thead>
+<tr>
+<th>ID</th>
+<th>Content</th>
+<th>Time</th>
+</tr>
+</thead>
+<tbody id="detailsBody"></tbody>
+</table>
+</div>
+</div>
+</div>
+<div id="backup" class="tab-content">
+<div class="card">
+<h2>Backup Controls</h2>
+<div class="backup-status">
+<p><strong>Connection Status:</strong> <span id="connectionStatus">Checking...</span></p>
+<p><strong>Last Backup:</strong> <span id="lastBackupTime">Never</span></p>
+</div>
+<div class="backup-controls">
+<button id="backupBtn" class="button">Backup Now</button>
+<p><small>Note: When online, backups automatically occur at app startup and when sessions end. If you need to manually backup the files, press the button above.</small></p>
+</div>
+</div>
+</div>
+<div id="about" class="tab-content">
+<div class="card">
+<h2>About This Application</h2>
+<div class="about-section">
+<h3>Function</h3>
+<p>This application serves as both a QR Code Scanner and Student Selector for attendance tracking in educational settings.</p>
+<h3>Purpose</h3>
+<p>The application was developed to:</p>
+<ul>
+<li>Automate the attendance tracking process</li>
+<li>Decrease unnecessary workload from staff</li>
+<li>Provide reliable tracking and data management</li>
+<li>Enable flexible student selection methods</li>
+</ul>
+<h3>Technical Details</h3>
+<p>This is a Progressive Web Application (PWA) built using HTML, CSS, and JavaScript. This allows it to:</p>
+<ul>
+<li>Work offline once installed</li>
+<li>Be installed on mobile devices</li>
+<li>Provide a native app-like experience</li>
+<li>Synchronize data when connectivity is restored</li>
+</ul>
+<h3>Features</h3>
+<p><strong>QR Code Scanner:</strong> Scans student QR codes for quick attendance tracking</p>
+<p><strong>Student Selector:</strong> Allows manual selection of students from organized lists</p>
+<h3>Usage Instructions</h3>
+<p>To use this application effectively:</p>
+<h4>Scanner Mode:</h4>
+<ol>
+<li>Start a new scanning session and specify the location</li>
+<li>Scan student QR codes or add entries manually</li>
+<li>End the session when complete</li>
+</ol>
+<h4>Selector Mode:</h4>
+<ol>
+<li>Start a new session and specify the location</li>
+<li>Filter students by year/group and select from the list</li>
+<li>Use the search function to quickly find specific students</li>
+<li>Add custom entries for special cases</li>
+<li>End the session when complete</li>
+</ol>
+<p><strong>For Both Modes:</strong></p>
+<ul>
+<li>Review past sessions in the History tab</li>
+<li>Backup your data regularly from the Backup tab</li>
+<li>Export data as needed for record keeping</li>
+</ul>
+<h3>Development Team</h3>
+<p>This application was developed by a medical student at Faculty of Medicine, Ain Shams University as part of ongoing efforts to integrate technological solutions into educational processes at the university.</p>
+<h3>Contact Information</h3>
+<p>If you have any questions, suggestions, or encounter issues with the application, please contact us:</p>
+<p>
+<a href="mailto:231249@med.asu.edu.eg">Primary Contact</a> | 
+<a href="mailto:mohammadhamdisaid.mh@icloud.com">Alternative Contact 1</a> | 
+<a href="mailto:mohammad_hamdi11@yahoo.com">Alternative Contact 2</a>
+</p>
+</div>
+</div>
+</div>
+<!-- Modal for Manual Entry -->
+<div id="manualEntryModal" class="modal">
+<div class="modal-content">
+<span class="close" id="closeManualEntryBtn">&times;</span>
+<h2>Enter Student ID Manually</h2>
+<div class="form-group">
+<p>Please enter the student ID:</p>
+<input type="text" id="manualIdInput" placeholder="e.g., S12345678">
+</div>
+<button id="confirmManualEntryBtn" class="button">Add Entry</button>
+</div>
+</div>
+<!-- Modal for Starting Session -->
+<div id="sessionModal" class="modal">
+<div class="modal-content">
+<span class="close" id="closeSessionBtn">&times;</span>
+<h2>Start New Session</h2>
+<div class="form-group">
+<p>Enter a location for this scanning session:</p>
+<input type="text" id="locationInput" placeholder="e.g., Morgue, Histology Lab, Biochemistry Lecture Hall">
+</div>
+<button id="confirmSessionBtn" class="button">Start Now</button>
+</div>
+</div>
+<!-- Modal for Custom Entry -->
+<div id="customEntryModal" class="modal">
+<div class="modal-content">
+<span class="close" id="closeCustomEntryBtn">&times;</span>
+<h2>Add Custom Student ID</h2>
+<div class="form-group">
+<label for="customIdInput">Student ID:</label>
+<input type="text" id="customIdInput" placeholder="Enter student ID">
+</div>
+<button id="confirmCustomEntryBtn" class="button">Add Student</button>
+</div>
+</div>
+<!-- Checklist Session Modal -->
+<div id="checklistModal" class="modal">
+<div class="modal-content">
+<span class="close" id="closeChecklistModalBtn">&times;</span>
+<h2>Start New Session</h2>
+<div class="form-group">
+<p>Enter a location for this scanning session:</p>
+<input type="text" id="checklistLocationInput" placeholder="e.g., Morgue, Histology Lab, Biochemistry Lecture Hall">
+</div>
+<div class="modal-actions">
+<button id="confirmChecklistBtn" class="button">Start Session</button>
+</div>
+</div>
+</div>
 <!-- Script for QR Code Scanning -->
 <script src="https://unpkg.com/@zxing/library@latest"></script>
 <!-- Script for Excel Export -->
