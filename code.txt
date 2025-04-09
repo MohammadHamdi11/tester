@@ -6,7 +6,7 @@
 <title>QR Code Scanner</title>
 <!-- PWA Meta Tags -->
 <meta name="theme-color" content="#24325f">
-<meta name="description" content="A QR code scanner application for attendance tracking">
+<meta name="description" content="A QR code scanner application">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="QR Scanner">
@@ -51,89 +51,6 @@ max-width: 1200px;
 margin: 0 auto;
 padding: 1rem;
 }
-/* Sign-in Styles */
-.signin-overlay {
-position: fixed;
-top: 0;
-left: 0;
-width: 100%;
-height: 100%;
-background-color: var(--bg-color);
-z-index: 2000;
-display: flex;
-justify-content: center;
-align-items: center;
-}
-.signin-container {
-background-color: var(--card-bg);
-border-radius: 8px;
-box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-padding: 2rem;
-width: 90%;
-max-width: 400px;
-display: flex;
-flex-direction: column;
-align-items: center;
-text-align: center;
-}
-.signin-container h2 {
-color: var(--primary-color);
-text-align: center;
-margin-bottom: 1.5rem;
-}
-.signin-error {
-color: var(--secondary-color);
-text-align: center;
-margin-top: 1rem;
-min-height: 1.5em;
-}
-.signin-contact-info {
-width: 100%;
-display: flex;
-flex-direction: column;
-align-items: center;
-}
-.signin-container h2,
-.signin-error,
-.signin-contact-info {
-text-align: center;
-width: 100%;
-}
-.signin-contact-info a.button {
-width: auto;
-margin: 0 auto;
-}
-.signin-button {
-min-width: 300px;
-max-width: 300px;
-max-height: 50px;
-min-height: 20px;
-}
-.signin-contact-info h3 {
-margin-top: 5px;
-margin-bottom: 10px;
-font-size: 1em;
-}
-.signin-contact-info p {
-margin-bottom: 10px;
-}
-.signin-contact-info .contact-note {
-font-size: 0.8em;
-margin-top: 8px;
-color: #666;
-}
-.signin-contact-info hr {
-border: 0;
-height: 1px;
-background-color: #e0e0e0;
-margin: 15px 0;
-}
-.button-small {
-padding: 5px 10px;
-font-size: 0.85em;
-min-width: 300px;
-max-width: 300px;
-}
 /* Card Styles */
 .card {
 background-color: var(--card-bg);
@@ -175,18 +92,34 @@ font-size: 14px;
 /* Tabs Styles */
 .tabs {
 display: flex;
-flex-wrap: wrap;
 border-bottom: 1px solid var(--border-color);
 margin-bottom: 1rem;
-position: relative;
+overflow-x: auto; /* Enable horizontal scrolling */
+white-space: nowrap; /* Prevent tab text from wrapping */
+-webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+scrollbar-width: thin; /* For Firefox */
+padding-bottom: 4px; /* Add some padding to account for scrollbar */
+position: relative; /* For proper event handling */
+cursor: grab; /* Show grab cursor to indicate scrollable */
+}
+.tabs.active-scroll {
+cursor: grabbing; /* Change cursor when actively scrolling */
+}
+/* Hide scrollbar for Chrome, Safari and Opera */
+.tabs::-webkit-scrollbar {
+height: 4px;
+}
+/* Handle on hover */
+.tabs::-webkit-scrollbar-thumb {
+background: var(--border-color);
+border-radius: 4px;
 }
 .tab {
 padding: 0.75rem 1.5rem;
 cursor: pointer;
 border-bottom: 3px solid transparent;
-flex: 1 0 33.333%; /* Each tab takes up 1/3 of the row */
-text-align: center;
-user-select: none;
+flex-shrink: 0; /* Prevent tabs from shrinking */
+user-select: none; /* Prevent text selection during drag */
 }
 .tab.active {
 border-bottom: 3px solid var(--primary-color);
@@ -247,10 +180,7 @@ cursor: pointer;
 font-size: 1.5rem;
 }
 /* Form Element Styles */
-input[type="text"], 
-input[type="email"], 
-input[type="password"], 
-select {
+input[type="text"], select {
 width: 100%;
 padding: 0.75rem;
 margin: 0.5rem 0;
@@ -362,22 +292,12 @@ margin-right: 10px;
 }
 /* Form Group Styles */
 .form-group {
-width: 100%;
 margin-bottom: 1rem;
-display: flex;
-flex-direction: column;
-align-items: center;
 }
 .form-group label {
 display: block;
 margin-bottom: 0.5rem;
 font-weight: bold;
-align-self: center;
-}
-.form-group input {
-width: 90%;
-max-width: 300px;
-margin: 0 auto;
 }
 /* Mobile Styles */
 @media (max-width: 768px) {
@@ -397,48 +317,18 @@ margin: 10% auto;
 </style>
 </head>
 <body>
-<!-- Sign-in overlay -->
-<div id="signin-overlay" class="signin-overlay">
-<div class="signin-container">
-<h2>Sign In</h2>
-<form id="signin-form">
-<div class="form-group">
-<label for="email">Email:</label>
-<input type="email" id="email" placeholder="Enter your email" required aria-required="true">
-</div>
-<div class="form-group">
-<label for="password">Password:</label>
-<input type="password" id="password" placeholder="Enter your password" required aria-required="true" autocomplete="current-password">
-</div>
-<button id="signin-button" type="submit" class="button signin-button">Sign In</button>
-</form>
-<p id="signin-error" class="signin-error" aria-live="polite"></p>
-<!-- Contact Info Section -->
-<div class="signin-contact-info">
-<hr>
-<h3>Need Help?</h3>
-<p>If you're having trouble signing in or need assistance, please contact support:</p>
-<a href="https://docs.google.com/forms/d/e/1FAIpQLSfOt-UrLB_rBF6NdpPHG2iTaB8B5AcZIfkkQfOTslpsAULRBg/viewform?usp=header" target="_blank" class="button button-small">Support Form</a>
-<p class="contact-note">We typically respond within 24-48 hours.</p>
-</div>
-</div>
-</div>
 <header>
-<h1>Attendance Recorder App</h1>
+<h1>QR Code Scanner</h1>
 </header>
 <div class="container">
-<nav>
-<div class="tabs" role="tablist">
-<div class="tab active" data-tab="scanner" role="tab" aria-selected="true" tabindex="0">Scanner</div>
-<div class="tab" data-tab="checklist" role="tab" aria-selected="false" tabindex="0">Selector</div>
-<div class="tab" data-tab="history" role="tab" aria-selected="false" tabindex="0">History</div>
-<div class="tab" data-tab="backup" role="tab" aria-selected="false" tabindex="0">Backup</div>
-<div class="tab" data-tab="about" role="tab" aria-selected="false" tabindex="0">About</div>
-<div class="tab" data-tab="contact-support" role="tab" aria-selected="false" tabindex="0">Contact Support</div>
+<div class="tabs">
+<div class="tab active" data-tab="scanner">Scanner</div>
+<div class="tab" data-tab="checklist">Selector</div>
+<div class="tab" data-tab="history">History</div>
+<div class="tab" data-tab="backup">Backup</div>
+<div class="tab" data-tab="about">About</div>
 </div>
-</nav>
-<main>
-<div id="scanner" class="tab-content active" role="tabpanel" aria-labelledby="scanner-tab">
+<div id="scanner" class="tab-content active">
 <div class="card">
 <h2>QR Code Scanner</h2>
 <div class="flex-between">
@@ -456,17 +346,17 @@ margin: 10% auto;
 <div id="scanner-placeholder" style="text-align: center; padding: 2rem;">
 <p>Click "Start New Session" to begin scanning QR codes.</p>
 </div>
-<video id="video" style="display: none;" aria-label="QR code scanner video"></video>
+<video id="video" style="display: none;"></video>
 </div>
 <div class="scan-results">
 <h3>Scanned QR Codes</h3>
 <p id="noScansMessage">No QR codes scanned yet.</p>
-<table id="resultTable" class="result-table" style="display: none;" aria-label="Scanned QR Codes">
+<table id="resultTable" class="result-table" style="display: none;">
 <thead>
 <tr>
-<th scope="col">ID</th>
-<th scope="col">Content</th>
-<th scope="col">Time</th>
+<th>ID</th>
+<th>Content</th>
+<th>Time</th>
 </tr>
 </thead>
 <tbody id="resultBody"></tbody>
@@ -474,7 +364,7 @@ margin: 10% auto;
 </div>
 </div>
 </div>
-<div id="checklist" class="tab-content" role="tabpanel" aria-labelledby="checklist-tab">
+<div id="checklist" class="tab-content">
 <div class="card">
 <h2>Student Selector</h2>
 <div class="flex-between">
@@ -493,22 +383,22 @@ margin: 10% auto;
 </div>
 <div class="checklist-container" style="display: none;">
 <div class="checklist-header">
-<input type="text" id="studentSearchInput" placeholder="Search for students..." class="search-input" aria-label="Search for students">
+<input type="text" id="studentSearchInput" placeholder="Search for students..." class="search-input">
 <button id="closeChecklistBtn" class="button button-small">Close</button>
 </div>
-<div id="studentsChecklist" class="checklist-area" role="region" aria-label="Student checklist">
+<div id="studentsChecklist" class="checklist-area">
 <!-- Students will be loaded here -->
 </div>
 </div>
 <div class="selection-results">
 <h3>Selected Students</h3>
 <p id="noSelectionsMessage">No students selected yet.</p>
-<table id="selectionTable" class="result-table" style="display: none;" aria-label="Selected Students">
+<table id="selectionTable" class="result-table" style="display: none;">
 <thead>
 <tr>
-<th scope="col">ID</th>
-<th scope="col">Content</th>
-<th scope="col">Time</th>
+<th>ID</th>
+<th>Content</th>
+<th>Time</th>
 </tr>
 </thead>
 <tbody id="selectionBody"></tbody>
@@ -516,7 +406,7 @@ margin: 10% auto;
 </div>
 </div>
 </div>
-<div id="history" class="tab-content" role="tabpanel" aria-labelledby="history-tab">
+<div id="history" class="tab-content">
 <div class="card">
 <h2>Scanning History</h2>
 <div class="flex-between">
@@ -524,8 +414,7 @@ margin: 10% auto;
 <button id="exportAllBtn" class="button">Export All History</button>
 </div>
 <div class="filter-controls">
-<label for="sortBy" class="sr-only">Sort by</label>
-<select id="sortBy" aria-label="Sort history by">
+<select id="sortBy">
 <option value="date-desc">Date (Newest First)</option>
 <option value="date-asc">Date (Oldest First)</option>
 <option value="location">Location</option>
@@ -548,12 +437,12 @@ margin: 10% auto;
 <button id="closeDetailsBtn" class="button button-secondary">Close Details</button>
 </div>
 </div>
-<table class="result-table" aria-label="Session details">
+<table class="result-table">
 <thead>
 <tr>
-<th scope="col">ID</th>
-<th scope="col">Content</th>
-<th scope="col">Time</th>
+<th>ID</th>
+<th>Content</th>
+<th>Time</th>
 </tr>
 </thead>
 <tbody id="detailsBody"></tbody>
@@ -561,7 +450,7 @@ margin: 10% auto;
 </div>
 </div>
 </div>
-<div id="backup" class="tab-content" role="tabpanel" aria-labelledby="backup-tab">
+<div id="backup" class="tab-content">
 <div class="card">
 <h2>Backup Controls</h2>
 <div class="backup-status">
@@ -574,7 +463,7 @@ margin: 10% auto;
 </div>
 </div>
 </div>
-<div id="about" class="tab-content" role="tabpanel" aria-labelledby="about-tab">
+<div id="about" class="tab-content">
 <div class="card">
 <h2>About This Application</h2>
 <div class="about-section">
@@ -623,177 +512,71 @@ margin: 10% auto;
 </ul>
 <h3>Development Team</h3>
 <p>This application was developed by a medical student at Faculty of Medicine, Ain Shams University as part of ongoing efforts to integrate technological solutions into educational processes at the university.</p>
+<h3>Contact Information</h3>
+<p>If you have any questions, suggestions, or encounter issues with the application, please contact us:</p>
+<p>
+<a href="mailto:231249@med.asu.edu.eg">Primary Contact</a> | 
+<a href="mailto:mohammadhamdisaid.mh@icloud.com">Alternative Contact 1</a> | 
+<a href="mailto:mohammad_hamdi11@yahoo.com">Alternative Contact 2</a>
+</p>
 </div>
 </div>
 </div>
-<div id="contact-support" class="tab-content" role="tabpanel" aria-labelledby="contact-support-tab">
-<div class="card">
-<h2>Contact Support</h2>
-<div class="about-section">
-<h3>Get Help</h3>
-<p>If you have any questions, suggestions, or encounter issues with the application, please submit your inquiry through our support form:</p>
-<a href="https://docs.google.com/forms/d/e/1FAIpQLSfOt-UrLB_rBF6NdpPHG2iTaB8B5AcZIfkkQfOTslpsAULRBg/viewform?usp=header" target="_blank" class="button">Open Support Form</a>
-</div>
-<div class="form-group">
-<h3>Response Time</h3>
-<p>We typically respond to all inquiries within 24-48 hours.</p>
-</div>
-</div>
-</div>
-</main>
-</div>
-<!-- Modals -->
 <!-- Modal for Manual Entry -->
-<div id="manualEntryModal" class="modal" role="dialog" aria-labelledby="manualEntryTitle" aria-hidden="true">
+<div id="manualEntryModal" class="modal">
 <div class="modal-content">
-<span class="close" id="closeManualEntryBtn" aria-label="Close">&times;</span>
-<h2 id="manualEntryTitle">Enter Student ID Manually</h2>
-<form id="manualEntryForm">
+<span class="close" id="closeManualEntryBtn">&times;</span>
+<h2>Enter Student ID Manually</h2>
 <div class="form-group">
 <p>Please enter the student ID:</p>
-<input type="text" id="manualIdInput" placeholder="e.g., S12345678" aria-label="Student ID" required>
+<input type="text" id="manualIdInput" placeholder="e.g., S12345678">
 </div>
-<button id="confirmManualEntryBtn" type="submit" class="button">Add Entry</button>
-</form>
+<button id="confirmManualEntryBtn" class="button">Add Entry</button>
 </div>
 </div>
 <!-- Modal for Starting Session -->
-<div id="sessionModal" class="modal" role="dialog" aria-labelledby="sessionModalTitle" aria-hidden="true">
+<div id="sessionModal" class="modal">
 <div class="modal-content">
-<span class="close" id="closeSessionBtn" aria-label="Close">&times;</span>
-<h2 id="sessionModalTitle">Start New Session</h2>
-<form id="sessionForm">
+<span class="close" id="closeSessionBtn">&times;</span>
+<h2>Start New Session</h2>
 <div class="form-group">
 <p>Enter a location for this scanning session:</p>
-<input type="text" id="locationInput" placeholder="e.g., Morgue, Histology Lab, Biochemistry Lecture Hall" aria-label="Session location" required>
+<input type="text" id="locationInput" placeholder="e.g., Morgue, Histology Lab, Biochemistry Lecture Hall">
 </div>
-<button id="confirmSessionBtn" type="submit" class="button">Start Now</button>
-</form>
+<button id="confirmSessionBtn" class="button">Start Now</button>
 </div>
 </div>
 <!-- Modal for Custom Entry -->
-<div id="customEntryModal" class="modal" role="dialog" aria-labelledby="customEntryTitle" aria-hidden="true">
+<div id="customEntryModal" class="modal">
 <div class="modal-content">
-<span class="close" id="closeCustomEntryBtn" aria-label="Close">&times;</span>
-<h2 id="customEntryTitle">Add Custom Student ID</h2>
-<form id="customEntryForm">
+<span class="close" id="closeCustomEntryBtn">&times;</span>
+<h2>Add Custom Student ID</h2>
 <div class="form-group">
 <label for="customIdInput">Student ID:</label>
-<input type="text" id="customIdInput" placeholder="Enter student ID" aria-label="Custom student ID" required>
+<input type="text" id="customIdInput" placeholder="Enter student ID">
 </div>
-<button id="confirmCustomEntryBtn" type="submit" class="button">Add Student</button>
-</form>
+<button id="confirmCustomEntryBtn" class="button">Add Student</button>
 </div>
 </div>
 <!-- Checklist Session Modal -->
-<div id="checklistModal" class="modal" role="dialog" aria-labelledby="checklistModalTitle" aria-hidden="true">
+<div id="checklistModal" class="modal">
 <div class="modal-content">
-<span class="close" id="closeChecklistModalBtn" aria-label="Close">&times;</span>
-<h2 id="checklistModalTitle">Start New Session</h2>
-<form id="checklistForm">
+<span class="close" id="closeChecklistModalBtn">&times;</span>
+<h2>Start New Session</h2>
 <div class="form-group">
 <p>Enter a location for this scanning session:</p>
-<input type="text" id="checklistLocationInput" placeholder="e.g., Morgue, Histology Lab, Biochemistry Lecture Hall" aria-label="Checklist session location" required>
+<input type="text" id="checklistLocationInput" placeholder="e.g., Morgue, Histology Lab, Biochemistry Lecture Hall">
 </div>
 <div class="modal-actions">
-<button id="confirmChecklistBtn" type="submit" class="button">Start Session</button>
-</div>
-</form>
+<button id="confirmChecklistBtn" class="button">Start Session</button>
 </div>
 </div>
-<!-- Add screen reader only class -->
-<style>
-.sr-only {
-position: absolute;
-width: 1px;
-height: 1px;
-padding: 0;
-margin: -1px;
-overflow: hidden;
-clip: rect(0, 0, 0, 0);
-white-space: nowrap;
-border-width: 0;
-}
-</style>
+</div>
 <!-- Script for QR Code Scanning -->
 <script src="https://unpkg.com/@zxing/library@latest"></script>
 <!-- Script for Excel Export -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-//========================================================================================================== SIGN IN AND AUTHENTICATION ========//
-// Authentication variables and functions
-const signinOverlay = document.getElementById('signin-overlay');
-const signinButton = document.getElementById('signin-button');
-const emailInput = document.getElementById('email');
-const passwordInput = document.getElementById('password');
-const signinError = document.getElementById('signin-error');
-const AUTH_STATUS_KEY = 'qrScannerAuthStatus';
-// Check if user is already authenticated
-function checkAuthentication() {
-const authStatus = localStorage.getItem(AUTH_STATUS_KEY);
-if (authStatus === 'authenticated') {
-signinOverlay.style.display = 'none';
-} else {
-signinOverlay.style.display = 'flex';
-loadUserCredentials();
-}
-}
-// Load user credentials from JSON file
-let userCredentials = [];
-async function loadUserCredentials() {
-try {
-const response = await fetch('usercredentials.json');
-if (!response.ok) {
-throw new Error('Failed to load user credentials');
-}
-userCredentials = await response.json();
-} catch (error) {
-console.error('Error loading credentials:', error);
-signinError.textContent = 'Could not load authentication data. Please try again later.';
-}
-}
-// Authenticate user
-function authenticateUser(email, password) {
-if (!userCredentials || userCredentials.length === 0) {
-signinError.textContent = 'Authentication system is not available';
-return false;
-}
-const user = userCredentials.find(user => 
-user.email.toLowerCase() === email.toLowerCase() && 
-user.password === password
-);
-if (user) {
-localStorage.setItem(AUTH_STATUS_KEY, 'authenticated');
-signinOverlay.style.display = 'none';
-return true;
-} else {
-signinError.textContent = 'Invalid email or password';
-return false;
-}
-}
-// Event listener for sign-in button
-signinButton.addEventListener('click', () => {
-const email = emailInput.value.trim();
-const password = passwordInput.value;
-if (!email) {
-signinError.textContent = 'Please enter your email';
-return;
-}
-if (!password) {
-signinError.textContent = 'Please enter your password';
-return;
-}
-authenticateUser(email, password);
-});
-// Clear error message when user starts typing
-emailInput.addEventListener('input', () => {
-signinError.textContent = '';
-});
-passwordInput.addEventListener('input', () => {
-signinError.textContent = '';
-});
-// Check authentication status when the page loads
-document.addEventListener('DOMContentLoaded', checkAuthentication);
 //========================================================================================================== ELEMENTS ========//
 const tabs = document.querySelectorAll('.tab');
 const tabContents = document.querySelectorAll('.tab-content');
