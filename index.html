@@ -573,11 +573,11 @@ margin: 10% auto;
 </div>
 </div>
 <!-- Script for QR Code Scanning -->
-<script src="jsQR.min.js"></script>
+<script src="https://unpkg.com/@zxing/library@latest"></script>
 <!-- Script for Excel Export -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-//========================================================================================================== DOM ELEMENTS ========//
+//========================================================================================================== ELEMENTS ========//
 const tabs = document.querySelectorAll('.tab');
 const tabContents = document.querySelectorAll('.tab-content');
 const startSessionBtn = document.getElementById('startSessionBtn');
@@ -613,7 +613,7 @@ const autoBackupStatus = document.getElementById('autoBackupStatus');
 const manualEntryModal = document.getElementById('manualEntryModal');
 const closeManualEntryBtn = document.getElementById('closeManualEntryBtn');
 const manualIdInput = document.getElementById('manualIdInput');
-const confirmManualEntryBtn = document.getElementById('confirmManualEntryBtn');//========================================================================================================== APPLICATION STATE ========//
+const confirmManualEntryBtn = document.getElementById('confirmManualEntryBtn');
 let successSound = null;
 let activeSession = null;
 let canvasElement = document.createElement('canvas');
@@ -644,6 +644,10 @@ const AUTO_BACKUP_ENABLED_KEY = 'qrScannerAutoBackupEnabled';
 // GitHub token parts (to avoid detection)
 const GITHUB_TOKEN_PREFIX = 'github_pat_';
 const GITHUB_TOKEN_SUFFIX = '11BREVRNQ0XVpxHicj3xsl_vAfICFbNYso7tpxkuw9yZqcOG4FHzacfgkpOjBJE51HR3WGTNJTaUIfxSWg';
+let batchModeActive = true; // Always enabled as requested
+let batchBuffer = new Set(); // Store unique QR codes during batch scanning
+let processingBatch = false; // Flag to prevent concurrent batch processing
+let batchProcessingInterval = null; // Interval for batch processing
 //========================================================================================================== GITHUB BACKUP FUNCTIONS ========//
 // Check internet connection status
 function updateConnectionStatus() {
@@ -1668,29 +1672,65 @@ locationInput.focus();
 }
 //========================================================================================================== CAMERA & SCANNER FUNCTIONS ========//
 // Improved camera initialization function
+// Improved camera initialization function
 async function startCamera() {
 try {
 // Create scanner UI elements
 setupScannerUI();
-// Try to get camera access
+// Try to get camera access with optimized settings
 const constraints = {
 video: {
 facingMode: 'environment',
 width: { ideal: 1280 },
-height: { ideal: 720 }
+height: { ideal: 720 },
+// OPTIMIZATION: Request additional settings for better performance
+frameRate: { ideal: 30 },       // Higher frame rate for smoother scanning
+focusMode: { ideal: "continuous" }, // Continuous auto-focus
+exposureMode: { ideal: "continuous" }, // Continuous auto-exposure
+whiteBalanceMode: { ideal: "continuous" }
 }
 };
 console.log("Requesting camera access with constraints:", constraints);
 videoStream = await navigator.mediaDevices.getUserMedia(constraints);
 console.log("Camera access granted:", videoStream);
+// Get the actual track settings
+const videoTrack = videoStream.getVideoTracks()[0];
+// OPTIMIZATION: Apply custom settings if the camera supports them
+try {
+const capabilities = videoTrack.getCapabilities();
+const settings = {};
+// Optimize focus for barcode scanning if supported
+if (capabilities.focusDistance) {
+settings.focusMode = 'manual';
+// A mid-range focus distance often works well for QR codes
+settings.focusDistance = (capabilities.focusDistance.max + capabilities.focusDistance.min) / 2;
+}
+// Optimize exposure for QR codes if supported
+if (capabilities.exposureTime) {
+// Shorter exposure time reduces blur with motion
+settings.exposureTime = capabilities.exposureTime.min * 2;
+}
+// Apply optimized settings if any
+if (Object.keys(settings).length > 0) {
+await videoTrack.applyConstraints({ advanced: [settings] });
+console.log("Applied optimized camera settings:", settings);
+}
+} catch (settingsError) {
+// Non-critical error, continue without custom settings
+console.warn("Could not apply custom camera settings:", settingsError);
+}
 // Set up video element
 video.srcObject = videoStream;
 video.setAttribute("playsinline", true);
 video.onloadedmetadata = () => {
 console.log(`Video ready: ${video.videoWidth}x${video.videoHeight}`);
-// Set canvas dimensions to match video
+// OPTIMIZATION: Set canvas dimensions to match video
 canvasElement.width = video.videoWidth;
 canvasElement.height = video.videoHeight;
+// OPTIMIZATION: Improve rendering performance
+canvas.imageSmoothingEnabled = false; // Disable anti-aliasing for better QR detection
+// Start batch mode automatically
+startBatchMode();
 // Start video playback
 video.play()
 .then(() => {
@@ -1702,6 +1742,8 @@ scanning = true;
 requestAnimationFrame(scanQRCode);
 // Show scanning indicator
 updateScanStatus('Camera active - looking for QR codes');
+// OPTIMIZATION: Add batch mode indicator
+addScanLogEntry('Continuous & batch scanning enabled', 'info');
 })
 .catch(error => {
 console.error("Video playback failed:", error);
@@ -1885,44 +1927,42 @@ updateScanStatus('Error: Invalid image data');
 requestAnimationFrame(scanQRCode);
 return;
 }
-// Verify jsQR is available with additional logging
+// Verify jsQR is available
 if (typeof jsQR !== 'function') {
 console.error("jsQR is not available. Current value:", jsQR);
 updateScanStatus('QR scanner not loaded correctly');
-// Try to reload the library
 loadJsQR().catch(err => console.error("Failed to reload jsQR:", err));
 requestAnimationFrame(scanQRCode);
 return;
 }
-// Process with jsQR with try-catch for better error reporting
+// Process multiple QR codes at once (new feature)
 try {
+// First try the standard method for single QR code
 const code = jsQR(imageData.data, imageData.width, imageData.height, {
 inversionAttempts: "dontInvert"
 });
 if (code && code.data) {
-// Make sure we have actual data before proceeding
-if (code.data.trim() === '') {
-// Empty QR code data, continue scanning
-updateScanStatus('Empty QR code detected. Please scan again.');
-} else {
-console.log("QR Code detected:", code.data);
-updateScanStatus(`✅ Successfully scanned: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
-// Highlight the QR code
-highlightQR(code.location);
-// Play success sound for ALL scans
-playSuccessSound();
-// Check if this code was recently scanned
-if (!lastScannedCodes.has(code.data)) {
-// Add to recent scans set and set timeout to remove
-lastScannedCodes.add(code.data);
-setTimeout(() => {
-lastScannedCodes.delete(code.data);
-}, 3000); // Prevent duplicate scans for 3 seconds
-// Process the scanned code
-processScannedCode(code.data);
-} else {
-// Duplicate scan
-updateScanStatus(`Duplicate scan: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
+// Process the primary QR code
+handleQRCode(code);
+// OPTIMIZATION: Try to scan for additional QR codes in the same frame
+// This is a simplified approach - for true multi-code scanning, 
+// a more advanced library would be better
+const darkAreas = detectPotentialQRRegions(imageData);
+if (darkAreas.length > 0) {
+// Only process a reasonable number of regions to maintain performance
+const regionsToProcess = Math.min(darkAreas.length, 3);
+for (let i = 0; i < regionsToProcess; i++) {
+const region = darkAreas[i];
+// Skip the region that's likely the same as our already detected code
+if (isOverlapping(region, code.location)) continue;
+// Extract and process potential QR code
+const regionData = extractRegionData(imageData, region);
+const regionCode = jsQR(regionData.data, regionData.width, regionData.height, {
+inversionAttempts: "dontInvert"
+});
+if (regionCode && regionCode.data && regionCode.data !== code.data) {
+handleQRCode(regionCode);
+}
 }
 }
 } else {
@@ -1940,8 +1980,224 @@ updateScanStatus('Error in scan process: ' + error.message);
 } else {
 updateScanStatus('Waiting for camera...');
 }
-// Continue scanning
-requestAnimationFrame(scanQRCode);
+// Continue scanning - OPTIMIZATION: Use faster refresh rate for smoother scanning
+setTimeout(() => requestAnimationFrame(scanQRCode), 10);
+}
+// Helper function to handle detected QR codes
+function handleQRCode(code) {
+if (!code.data || code.data.trim() === '') {
+return;
+}
+// Check if this code is already in our session
+const alreadyScannedInSession = activeSession.scans.some(scan => scan.content === code.data);
+// Check if this code was recently scanned (to prevent rapid duplicates)
+if (!lastScannedCodes.has(code.data) && !alreadyScannedInSession) {
+// Add to recent scans set and set timeout to remove
+lastScannedCodes.add(code.data);
+setTimeout(() => {
+lastScannedCodes.delete(code.data);
+}, 3000); // Prevent duplicate scans for 3 seconds
+// Highlight the QR code
+highlightQR(code.location);
+if (batchModeActive) {
+// Add to batch buffer
+if (!batchBuffer.has(code.data)) {
+batchBuffer.add(code.data);
+updateBatchIndicator();
+// Visual feedback
+updateScanStatus(`Added to batch: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
+addScanLogEntry(`Queued: ${code.data.substring(0, 15)}${code.data.length > 15 ? '...' : ''}`, 'info');
+// Play a shorter sound for batch additions
+playSuccessSound();
+}
+} else {
+// Process immediately if not in batch mode
+playSuccessSound();
+processScannedCode(code.data);
+}
+} else if (alreadyScannedInSession) {
+// Already in session
+updateScanStatus(`Already scanned: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
+} else {
+// Recent duplicate
+updateScanStatus(`Duplicate scan: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
+}
+}
+// OPTIMIZATION: Simple detection of dark regions that might contain QR codes
+function detectPotentialQRRegions(imageData) {
+// This is a simplified version - a real implementation would be more sophisticated
+const regions = [];
+const blockSize = 20;
+const threshold = 100;
+for (let y = 0; y < imageData.height; y += blockSize) {
+for (let x = 0; x < imageData.width; x += blockSize) {
+if (isDarkRegion(imageData, x, y, blockSize, threshold)) {
+regions.push({
+x: Math.max(0, x - blockSize),
+y: Math.max(0, y - blockSize),
+width: blockSize * 3,
+height: blockSize * 3
+});
+}
+}
+}
+return regions;
+}
+// Helper to check if a region is dark (potential QR code)
+function isDarkRegion(imageData, startX, startY, size, threshold) {
+const endX = Math.min(startX + size, imageData.width);
+const endY = Math.min(startY + size, imageData.height);
+let darkPixels = 0;
+let totalPixels = 0;
+for (let y = startY; y < endY; y++) {
+for (let x = startX; x < endX; x++) {
+const idx = (y * imageData.width + x) * 4;
+const r = imageData.data[idx];
+const g = imageData.data[idx + 1];
+const b = imageData.data[idx + 2];
+const avg = (r + g + b) / 3;
+if (avg < threshold) {
+darkPixels++;
+}
+totalPixels++;
+}
+}
+return (darkPixels / totalPixels) > 0.5;
+}
+// Helper to check if two regions overlap
+function isOverlapping(region1, location) {
+if (!location) return false;
+// Convert QR location points to a bounding box
+const qrPoints = [location.topLeftCorner, location.topRightCorner, 
+location.bottomRightCorner, location.bottomLeftCorner];
+let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
+for (const point of qrPoints) {
+minX = Math.min(minX, point.x);
+minY = Math.min(minY, point.y);
+maxX = Math.max(maxX, point.x);
+maxY = Math.max(maxY, point.y);
+}
+const qrBox = {
+x: minX,
+y: minY,
+width: maxX - minX,
+height: maxY - minY
+};
+// Check if the regions overlap
+return !(
+region1.x + region1.width < qrBox.x ||
+qrBox.x + qrBox.width < region1.x ||
+region1.y + region1.height < qrBox.y ||
+qrBox.y + qrBox.height < region1.y
+);
+}
+// Helper to extract region data for processing
+function extractRegionData(imageData, region) {
+const canvas = document.createElement('canvas');
+const ctx = canvas.getContext('2d');
+// Ensure we don't exceed image boundaries
+const width = Math.min(region.width, imageData.width - region.x);
+const height = Math.min(region.height, imageData.height - region.y);
+canvas.width = width;
+canvas.height = height;
+// Create a new ImageData object for the region
+const regionImgData = ctx.createImageData(width, height);
+// Copy pixel data
+for (let y = 0; y < height; y++) {
+for (let x = 0; x < width; x++) {
+const sourceIdx = ((region.y + y) * imageData.width + (region.x + x)) * 4;
+const destIdx = (y * width + x) * 4;
+regionImgData.data[destIdx] = imageData.data[sourceIdx];
+regionImgData.data[destIdx + 1] = imageData.data[sourceIdx + 1];
+regionImgData.data[destIdx + 2] = imageData.data[sourceIdx + 2];
+regionImgData.data[destIdx + 3] = imageData.data[sourceIdx + 3];
+}
+}
+return regionImgData;
+}
+// Function to start batch mode (call this after starting the camera)
+function startBatchMode() {
+if (batchProcessingInterval) {
+clearInterval(batchProcessingInterval);
+}
+batchBuffer.clear();
+batchModeActive = true;
+// Process the batch every 2 seconds
+batchProcessingInterval = setInterval(processBatch, 2000);
+// Update UI to show batch mode is active
+addScanLogEntry('Batch mode active - Scanning multiple codes', 'info');
+// Add batch mode indicator to scanner UI if it doesn't exist
+if (!document.getElementById('batch-indicator')) {
+const batchIndicator = document.createElement('div');
+batchIndicator.className = 'scanner-ui';
+batchIndicator.id = 'batch-indicator';
+batchIndicator.style.position = 'absolute';
+batchIndicator.style.top = '10px';
+batchIndicator.style.left = '10px';
+batchIndicator.style.backgroundColor = 'rgba(0,128,0,0.7)';
+batchIndicator.style.color = 'white';
+batchIndicator.style.padding = '5px 10px';
+batchIndicator.style.borderRadius = '15px';
+batchIndicator.style.fontSize = '12px';
+batchIndicator.style.zIndex = '100';
+batchIndicator.innerHTML = '⚡ Batch Mode';
+document.querySelector('.scanner-container').appendChild(batchIndicator);
+}
+}
+// Function to stop batch mode
+function stopBatchMode() {
+if (batchProcessingInterval) {
+clearInterval(batchProcessingInterval);
+batchProcessingInterval = null;
+}
+// Process any remaining codes in the buffer
+processBatch();
+batchModeActive = false;
+// Remove batch indicator if it exists
+const batchIndicator = document.getElementById('batch-indicator');
+if (batchIndicator) {
+batchIndicator.remove();
+}
+addScanLogEntry('Batch mode deactivated', 'info');
+}
+// Update batch indicator with current count
+function updateBatchIndicator() {
+const indicator = document.getElementById('batch-indicator');
+if (indicator) {
+indicator.innerHTML = `⚡ Batch: ${batchBuffer.size}`;
+// Visual feedback for batch size
+if (batchBuffer.size > 0) {
+indicator.style.backgroundColor = 'rgba(0,128,0,0.7)';
+}
+}
+}
+// Process all codes in the batch buffer
+function processBatch() {
+if (processingBatch || batchBuffer.size === 0) return;
+processingBatch = true;
+try {
+const batchSize = batchBuffer.size;
+// Show batch processing notification
+updateScanStatus(`Processing batch of ${batchSize} codes...`);
+// Process each code in the buffer
+batchBuffer.forEach(code => {
+processScannedCode(code);
+});
+// Clear the buffer after processing
+batchBuffer.clear();
+updateBatchIndicator();
+// Confirmation of batch processing
+updateScanStatus(`✅ Processed batch of ${batchSize} codes successfully`);
+addScanLogEntry(`Processed batch of ${batchSize} codes`, 'success');
+// Play a success sound for the whole batch
+playSuccessSound();
+} catch (error) {
+console.error("Error processing batch:", error);
+updateScanStatus(`Error processing batch: ${error.message}`);
+addScanLogEntry(`Batch processing error: ${error.message}`, 'error');
+} finally {
+processingBatch = false;
+}
 }
 //========================================================================================================== QR DATA PROCESSING ========//
 // Process scanned QR code 
@@ -1987,6 +2243,10 @@ addScanLogEntry(`Saved: ${data.substring(0, 15)}${data.length > 15 ? '...' : ''}
 }
 // End current scanning session - Renamed from stopScanner
 function endScanningSession() {
+// Stop batch mode if active
+if (batchModeActive) {
+stopBatchMode();
+}
 if (scanning) {
 scanning = false;
 // Stop auto-save
