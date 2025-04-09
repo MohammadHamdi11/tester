@@ -1751,23 +1751,17 @@ formattedDateTime: formattedDateTime,
 scans: [],
 inProgress: true // Flag to indicate session is in progress
 };
-// Add the session to the completed sessions array immediately
-// This ensures it's in history even if app crashes
-sessions.push(activeSession);
-// Save the session index for recovery purposes
-localStorage.setItem(TEMP_SESSION_INDEX_KEY, sessions.length - 1);
 // Update UI
 currentLocation.textContent = location;
 currentDateTime.textContent = formattedDateTime;
 sessionInfo.style.display = 'block';
-// Start camera
-startCamera();
-// Clear previous results
-resultBody.innerHTML = '';
-resultTable.style.display = 'none';
-noScansMessage.style.display = 'block';
-// Start auto-save interval
-startAutoSave();
+// Start camera - IMPORTANT: Only add session to storage AFTER camera access successful
+startCamera()
+.then(() => {
+// Camera started successfully, now add the session to storage
+sessions.push(activeSession);
+// Save the session index for recovery purposes
+localStorage.setItem(TEMP_SESSION_INDEX_KEY, sessions.length - 1);
 // Save all sessions to storage
 saveSessionsToStorage();
 // Save the active session separately for recovery
@@ -1776,6 +1770,20 @@ saveActiveSession();
 updateButtonStates();
 // Update history view to show the new session
 updateHistoryView();
+})
+.catch(error => {
+// Camera failed to start, reset session UI
+console.error("Failed to start camera:", error);
+sessionInfo.style.display = 'none';
+alert(`Failed to start camera: ${error.message}. Please check your camera permissions.`);
+activeSession = null; // Clear the active session since we couldn't start the camera
+});
+// Clear previous results
+resultBody.innerHTML = '';
+resultTable.style.display = 'none';
+noScansMessage.style.display = 'block';
+// Start auto-save interval
+startAutoSave();
 });
 //========================================================================================================== SESSION MANAGEMENT ========//
 // Start auto-save interval
@@ -1889,62 +1897,47 @@ locationInput.focus();
 }
 //========================================================================================================== CAMERA & SCANNER FUNCTIONS ========//
 // Improved camera initialization function
-// Improved camera initialization function
 async function startCamera() {
+return new Promise(async (resolve, reject) => {
 try {
 // Create scanner UI elements
 setupScannerUI();
-// Try to get camera access with optimized settings
+// Use simpler constraints first to increase chance of successful camera access
 const constraints = {
 video: {
-facingMode: 'environment',
-width: { ideal: 1280 },
-height: { ideal: 720 },
-// OPTIMIZATION: Request additional settings for better performance
-frameRate: { ideal: 30 },       // Higher frame rate for smoother scanning
-focusMode: { ideal: "continuous" }, // Continuous auto-focus
-exposureMode: { ideal: "continuous" }, // Continuous auto-exposure
-whiteBalanceMode: { ideal: "continuous" }
+facingMode: 'environment'
 }
 };
 console.log("Requesting camera access with constraints:", constraints);
+try {
 videoStream = await navigator.mediaDevices.getUserMedia(constraints);
 console.log("Camera access granted:", videoStream);
-// Get the actual track settings
-const videoTrack = videoStream.getVideoTracks()[0];
-// OPTIMIZATION: Apply custom settings if the camera supports them
+} catch (permissionError) {
+console.error("Camera permission error:", permissionError);
+// If failed with environment camera, try any camera
+if (permissionError.name === 'NotAllowedError' || permissionError.name === 'PermissionDeniedError') {
+reject(new Error("Camera access denied. Please check your browser permissions and try again."));
+return;
+} else {
 try {
-const capabilities = videoTrack.getCapabilities();
-const settings = {};
-// Optimize focus for barcode scanning if supported
-if (capabilities.focusDistance) {
-settings.focusMode = 'manual';
-// A mid-range focus distance often works well for QR codes
-settings.focusDistance = (capabilities.focusDistance.max + capabilities.focusDistance.min) / 2;
+// Fallback to any camera
+videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+console.log("Fallback camera access granted");
+} catch (fallbackError) {
+reject(new Error(`Could not access any camera: ${fallbackError.message}`));
+return;
 }
-// Optimize exposure for QR codes if supported
-if (capabilities.exposureTime) {
-// Shorter exposure time reduces blur with motion
-settings.exposureTime = capabilities.exposureTime.min * 2;
 }
-// Apply optimized settings if any
-if (Object.keys(settings).length > 0) {
-await videoTrack.applyConstraints({ advanced: [settings] });
-console.log("Applied optimized camera settings:", settings);
-}
-} catch (settingsError) {
-// Non-critical error, continue without custom settings
-console.warn("Could not apply custom camera settings:", settingsError);
 }
 // Set up video element
 video.srcObject = videoStream;
 video.setAttribute("playsinline", true);
 video.onloadedmetadata = () => {
 console.log(`Video ready: ${video.videoWidth}x${video.videoHeight}`);
-// OPTIMIZATION: Set canvas dimensions to match video
+// Set canvas dimensions to match video
 canvasElement.width = video.videoWidth;
 canvasElement.height = video.videoHeight;
-// OPTIMIZATION: Improve rendering performance
+// Improve rendering performance
 canvas.imageSmoothingEnabled = false; // Disable anti-aliasing for better QR detection
 // Start batch mode automatically
 startBatchMode();
@@ -1959,18 +1952,25 @@ scanning = true;
 requestAnimationFrame(scanQRCode);
 // Show scanning indicator
 updateScanStatus('Camera active - looking for QR codes');
-// OPTIMIZATION: Add batch mode indicator
+// Add batch mode indicator
 addScanLogEntry('Continuous & batch scanning enabled', 'info');
+// Signal successful camera start
+resolve();
 })
 .catch(error => {
 console.error("Video playback failed:", error);
-alert("Failed to start video playback. Please try again.");
+reject(new Error("Failed to start video playback. Please try again."));
 });
+};
+video.onerror = (err) => {
+console.error("Video element error:", err);
+reject(new Error("Video element error"));
 };
 } catch (error) {
 console.error("Camera access error:", error);
-alert(`Failed to access camera: ${error.message}. Please check camera permissions.`);
+reject(new Error(`Failed to access camera: ${error.message}. Please check camera permissions.`));
 }
+});
 }
 // Stop the scanner and release camera resources
 function stopScanner() {
