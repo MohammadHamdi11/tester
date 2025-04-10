@@ -203,11 +203,12 @@ font-size: 14px;
 display: grid;
 grid-template-columns: repeat(3, 1fr);
 grid-template-rows: auto auto;
+gap: 6px;
 border-bottom: 1px solid var(--border-color);
 margin-bottom: 1.5rem;
 overflow: hidden;
 white-space: normal;
-padding-bottom: 4px;
+padding-bottom: 8px;
 position: relative;
 }
 .tabs.active-scroll {
@@ -221,18 +222,21 @@ background: var(--border-color);
 border-radius: 4px;
 }
 .tab {
-padding: 0.75rem 1.5rem;
+padding: 0.75rem 0.5rem;
 cursor: pointer;
 border-bottom: 3px solid transparent;
 flex-shrink: 0;
 user-select: none;
 transition: all var(--transition-speed);
 position: relative;
+text-align: center;
+font-weight: 500;
 }
 .tab.active {
 border-bottom: 3px solid var(--primary-color);
 font-weight: bold;
 color: var(--primary-color);
+background-color: rgba(36, 50, 95, 0.05);
 }
 .tab:hover:not(.active) {
 background-color: var(--hover-bg);
@@ -263,6 +267,7 @@ min-height: 300px;
 background-color: var(--light-bg);
 border-radius: var(--border-radius);
 margin: 1rem 0;
+overflow: hidden;
 }
 /* Table Styles */
 .result-table {
@@ -337,6 +342,42 @@ border: 1px solid var(--border-color);
 border-radius: 4px;
 transition: border-color var(--transition-speed), box-shadow var(--transition-speed);
 font-size: 1rem;
+}
+/* Password field container */
+.password-container {
+position: relative;
+width: 100%;
+}
+/* Password toggle button styling */
+#togglePassword {
+position: absolute;
+right: 10px;
+top: 50%;
+transform: translateY(-50%);
+background: none;
+border: none;
+cursor: pointer;
+color: #777;
+padding: 2px;
+font-size: 1.2rem;
+display: flex;
+align-items: center;
+justify-content: center;
+width: 30px;
+height: 30px;
+border-radius: 50%;
+transition: background-color 0.2s, color 0.2s;
+}
+#togglePassword::before {
+font-size: 16px;
+}
+#togglePassword:hover {
+background-color: rgba(0, 0, 0, 0.05);
+color: var(--primary-color);
+}
+/* Give password input right padding to avoid text under the icon */
+#password {
+padding-right: 40px;
 }
 input[type="text"]:focus, 
 input[type="email"]:focus, 
@@ -530,10 +571,12 @@ padding: 1.5rem;
 padding: 1rem;
 }
 .tabs {
+grid-template-columns: repeat(2, 1fr);
+grid-template-rows: repeat(3, auto);
 padding-bottom: 2px;
 }
 .tab {
-padding: 0.6rem 1.2rem;
+padding: 0.6rem 0.6rem;
 font-size: 0.9rem;
 }
 .signin-button,
@@ -556,7 +599,7 @@ font-size: 1.5rem;
 padding: 1rem;
 }
 .tab {
-padding: 0.5rem 1rem;
+padding: 0.5rem 0.5rem;
 font-size: 0.85rem;
 }
 .result-table th, 
