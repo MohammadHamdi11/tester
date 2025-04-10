@@ -69,8 +69,6 @@ z-index: 2000;
 display: flex;
 justify-content: center;
 align-items: center;
-overflow-y: auto; /* Enable vertical scrolling */
-padding: 20px 0; /* Add some padding to avoid content touching screen edges */
 }
 .signin-container {
 background-color: var(--card-bg);
@@ -78,35 +76,11 @@ border-radius: var(--border-radius);
 box-shadow: var(--shadow-strong);
 padding: 2rem;
 width: 90%;
-max-width: 500px; /* Adjusted from 700px for better centering */
+max-width: 400px;
 display: flex;
 flex-direction: column;
 align-items: center;
 text-align: center;
-max-height: 95vh; /* Limit height to 95% of viewport height */
-overflow-y: auto; /* Enable scrolling within the container */
-margin: 20px 0; /* Add some margin to prevent it from touching edges */
-}
-.signin-container .form-group {
-margin-bottom: 1.5rem;
-display: flex; /* Use flex for alignment */
-flex-direction: column; /* Stack elements vertically */
-align-items: center; /* Center horizontally */
-width: 100%;
-max-width: 350px; /* Control width for better appearance */
-}
-.signin-container .form-group label {
-width: 100%;
-text-align: center;
-margin-bottom: 0.5rem;
-font-weight: 600;
-color: var(--primary-color);
-}
-.signin-container .form-group input[type="email"],
-.signin-container .form-group input[type="password"],
-.signin-container .form-group div[style="position: relative;"] {
-width: 100%;
-max-width: 100%;
 }
 .signin-container h2 {
 color: var(--primary-color);
@@ -126,7 +100,7 @@ width: 100%;
 display: flex;
 flex-direction: column;
 align-items: center;
-margin-top: 0.75rem; /* Reduced from 1rem */
+margin-top: 1rem;
 }
 .signin-container h2,
 .signin-error,
@@ -139,20 +113,20 @@ width: auto;
 margin: 0 auto;
 }
 .signin-button {
-min-width: 200px;
+min-width: 300px;
 max-width: 300px;
 min-height: 20px;
 max-height: 50px;
-margin-top: 1rem;
+margin-top: 0.5rem;
 }
 .signin-contact-info h3 {
-margin-top: 3px; /* Reduced from 5px */
-margin-bottom: 6px; /* Reduced from 10px */
+margin-top: 5px;
+margin-bottom: 10px;
 font-size: 1em;
 font-weight: 600;
 }
 .signin-contact-info p {
-margin-bottom: 8px; /* Reduced from 10px */
+margin-bottom: 10px;
 line-height: 1.4;
 }
 .signin-contact-info .contact-note {
@@ -165,7 +139,7 @@ font-style: italic;
 border: 0;
 height: 1px;
 background-color: #e0e0e0;
-margin: 10px 0;
+margin: 15px 0;
 width: 100%;
 }
 .button-small {
@@ -173,35 +147,6 @@ padding: 5px 10px;
 font-size: 0.85em;
 min-width: 300px;
 max-width: 300px;
-}
-.collapsible-header {
-cursor: pointer;
-display: flex;
-justify-content: space-between;
-align-items: center;
-padding: 8px 0;
-user-select: none;
-}
-.collapsible-header:after {
-content: "+";
-font-weight: bold;
-font-size: 18px;
-margin-left: 5px;
-}
-.collapsible-header.active:after {
-content: "-";
-}
-.collapsible-content {
-max-height: 0;
-overflow: hidden;
-transition: max-height 0.3s ease-out;
-}
-.collapsible-content.active {
-max-height: 500px; /* Adjust based on content size */
-}
-/* Adjust the hr styling */
-.signin-contact-info hr {
-margin: 10px 0;
 }
 /* Card Styles */
 .card {
@@ -607,42 +552,7 @@ font-weight: bold;
 color: #444;
 }
 /* Mobile Styles */
-@media (max-height: 500px) {
-.signin-container {
-padding: 1.5rem;
-}
-.signin-container h2 {
-margin-bottom: 1rem;
-}
-.button-small {
-padding: 4px 8px;
-}
-}
-@media (max-height: 500px) {
-.signin-container {
-padding: 1rem;
-}
-}
 @media (max-width: 768px) {
-.signin-container {
-max-width: 400px;
-padding: 1.5rem;
-}
-.signin-container .form-group {
-max-width: 300px;
-}
-.signin-container .form-group label {
-width: 100%;
-text-align: left;
-margin-right: 0;
-margin-bottom: 0.5rem;
-}
-.signin-container .form-group input[type="email"],
-.signin-container .form-group input[type="password"],
-.signin-container .form-group div[style="position: relative;"] {
-width: 100%;
-max-width: 100%;
-}
 .button {
 width: 100%;
 margin-bottom: 0.75rem;
@@ -671,9 +581,8 @@ font-size: 0.9rem;
 }
 .signin-button,
 .button-small {
-min-width: 200px;
+min-width: 100%;
 max-width: 100%;
-}
 }
 .result-table th, 
 .result-table td {
@@ -686,9 +595,8 @@ font-size: 1.5rem;
 }
 /* Additional responsive enhancements */
 @media (max-width: 480px) {
-.signin-container {
-padding: 1.25rem;
-width: 95%;
+.modal-content {
+padding: 1rem;
 }
 .tab {
 padding: 0.5rem 0.5rem;
@@ -728,19 +636,10 @@ max-height: 250px;
 <!-- Contact Info Section -->
 <div class="signin-contact-info">
 <hr>
-<h3 class="collapsible-header">User Guide</h3>
-<div class="collapsible-content">
-<p>Need help getting started? Download our comprehensive user guide:</p>
-<a href="Attendance Recorder App User Guide.pdf" class="button button-small" download>Download User Guide</a>
-<p class="contact-note">The guide contains detailed instructions for all app features, read it before resorting to contact support</p>
-</div>
-<hr>
-<h3 class="collapsible-header">Need Help?</h3>
-<div class="collapsible-content">
+<h3>Need Help?</h3>
 <p>If you're having trouble signing in or need assistance, please contact support:</p>
 <a href="https://docs.google.com/forms/d/e/1FAIpQLSfOt-UrLB_rBF6NdpPHG2iTaB8B5AcZIfkkQfOTslpsAULRBg/viewform?usp=header" target="_blank" class="button button-small">Support Form</a>
 <p class="contact-note">We typically respond within 24-48 hours.</p>
-</div>
 </div>
 </div>
 </div>
@@ -938,7 +837,6 @@ max-height: 250px;
 <li>Backup your data regularly from the Backup tab</li>
 <li>Export data as needed for record keeping</li>
 </ul>
-<p>For more detailed instructions, you can <span class="user-guide-link" style="color: var(--primary-color); text-decoration: underline; cursor: pointer;" onclick="window.open('Attendance Recorder App User Guide.pdf', '_blank')">access our comprehensive user guide here</span>.</p>
 <h3>Development Team</h3>
 <p>This application was developed by a medical student at Faculty of Medicine, Ain Shams University as part of ongoing efforts to integrate technological solutions into educational processes at the university.</p>
 </div>
@@ -948,13 +846,8 @@ max-height: 250px;
 <div class="card">
 <h2>Contact Support</h2>
 <div class="signin-contact-info">
-<h3>User Guide</h3>
-<p>Before contacting support, please check our comprehensive user guide:</p>
-<a href="Attendance Recorder App User Guide.pdf" class="button button-small" download>Download User Guide</a>
-<p class="contact-note">The guide contains detailed instructions for all app features.</p>
-<hr>
 <h3>Need Help?</h3>
-<p>If you're still having trouble with the application after reading the user guide, or need assistance, please contact support:</p>
+<p>If you're having trouble with the application or need assistance, please contact support:</p>
 <a href="https://docs.google.com/forms/d/e/1FAIpQLSfOt-UrLB_rBF6NdpPHG2iTaB8B5AcZIfkkQfOTslpsAULRBg/viewform?usp=header" target="_blank" class="button button-small">Support Form</a>
 <p class="contact-note">We typically respond within 24-48 hours.</p>
 <hr>
@@ -4124,17 +4017,6 @@ window.addEventListener('load', () => {
 // instead of on page load for better user experience
 // Modern browsers don't allow creating directories or choosing save locations
 // for security reasons, but files will be saved according to browser's download settings
-});
-// Handle collapsible sections
-document.addEventListener('DOMContentLoaded', function() {
-const collapsibles = document.querySelectorAll('.collapsible-header');
-collapsibles.forEach(header => {
-header.addEventListener('click', function() {
-this.classList.toggle('active');
-const content = this.nextElementSibling;
-content.classList.toggle('active');
-});
-});
 });
 </script>
 </body>
