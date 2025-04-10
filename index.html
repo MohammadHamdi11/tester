@@ -78,17 +78,34 @@ border-radius: var(--border-radius);
 box-shadow: var(--shadow-strong);
 padding: 2rem;
 width: 90%;
-max-width: 400px;
+max-width: 700px; /* Increased from 400px for rectangular shape */
 display: flex;
 flex-direction: column;
 align-items: center;
 text-align: center;
-max-height: 90vh; /* Limit height to 90% of viewport height */
+max-height: 95vh; /* Limit height to 90% of viewport height */
 overflow-y: auto; /* Enable scrolling within the container */
 margin: 20px 0; /* Add some margin to prevent it from touching edges */
 }
 .signin-container .form-group {
-margin-bottom: 1rem; /* Reduced from 1.25rem */
+margin-bottom: 1rem;
+display: flex; /* Added flex display for desktop view */
+align-items: center; /* Vertical centering */
+justify-content: center; /* Horizontal centering */
+flex-wrap: wrap; /* Allow wrapping on smaller screens */
+}
+.signin-container .form-group label {
+width: 80px; /* Fixed width for labels */
+text-align: right;
+margin-right: 15px;
+flex-shrink: 0; /* Prevent shrinking */
+}
+.signin-container .form-group input[type="email"],
+.signin-container .form-group input[type="password"],
+.signin-container .form-group div[style="position: relative;"] {
+flex: 1;
+min-width: 250px; /* Minimum width for inputs */
+max-width: calc(100% - 100px); /* Maximum width accounting for label */
 }
 .signin-container h2 {
 color: var(--primary-color);
@@ -560,8 +577,7 @@ font-weight: bold;
 color: #444;
 }
 /* Mobile Styles */
-/* Responsive adjustments */
-@media (max-height: 700px) {
+@media (max-height: 600px) {
 .signin-container {
 padding: 1.5rem;
 }
@@ -578,6 +594,25 @@ padding: 1rem;
 }
 }
 @media (max-width: 768px) {
+.signin-container {
+max-width: 400px; /* Return to original width for mobile */
+}
+.signin-container .form-group {
+flex-direction: column;
+align-items: flex-start;
+}
+.signin-container .form-group label {
+width: 100%;
+text-align: left;
+margin-right: 0;
+margin-bottom: 0.5rem;
+}
+.signin-container .form-group input[type="email"],
+.signin-container .form-group input[type="password"],
+.signin-container .form-group div[style="position: relative;"] {
+width: 100%;
+max-width: 100%;
+}
 .button {
 width: 100%;
 margin-bottom: 0.75rem;
