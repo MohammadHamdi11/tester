@@ -200,16 +200,15 @@ font-size: 14px;
 }
 /* Tabs Styles */
 .tabs {
-display: flex;
+display: grid;
+grid-template-columns: repeat(3, 1fr);
+grid-template-rows: auto auto;
 border-bottom: 1px solid var(--border-color);
 margin-bottom: 1.5rem;
-overflow-x: auto;
-white-space: nowrap;
--webkit-overflow-scrolling: touch;
-scrollbar-width: thin;
+overflow: hidden;
+white-space: normal;
 padding-bottom: 4px;
 position: relative;
-cursor: grab;
 }
 .tabs.active-scroll {
 cursor: grabbing;
@@ -583,7 +582,10 @@ max-height: 250px;
 </div>
 <div class="form-group">
 <label for="password">Password:</label>
+<div style="position: relative;">
 <input type="password" id="password" placeholder="Enter your password" required aria-required="true" autocomplete="current-password">
+<button type="button" id="togglePassword" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer;"></button>
+</div>
 </div>
 <button id="signin-button" type="submit" class="button signin-button">Sign In</button>
 </form>
@@ -608,6 +610,7 @@ max-height: 250px;
 <div class="tab" data-tab="history">History</div>
 <div class="tab" data-tab="backup">Backup</div>
 <div class="tab" data-tab="about">About</div>
+<div class="tab" data-tab="contact">Contact</div>
 </div>
 <div id="scanner" class="tab-content active">
 <div class="card">
@@ -793,13 +796,18 @@ max-height: 250px;
 </ul>
 <h3>Development Team</h3>
 <p>This application was developed by a medical student at Faculty of Medicine, Ain Shams University as part of ongoing efforts to integrate technological solutions into educational processes at the university.</p>
-<h3>Contact Information</h3>
-<p>If you have any questions, suggestions, or encounter issues with the application, please contact us:</p>
-<p>
-<a href="mailto:231249@med.asu.edu.eg">Primary Contact</a> | 
-<a href="mailto:mohammadhamdisaid.mh@icloud.com">Alternative Contact 1</a> | 
-<a href="mailto:mohammad_hamdi11@yahoo.com">Alternative Contact 2</a>
-</p>
+</div>
+</div>
+</div>
+<div id="contact" class="tab-content">
+<div class="card">
+<h2>Contact Support</h2>
+<div class="signin-contact-info">
+<h3>Need Help?</h3>
+<p>If you're having trouble with the application or need assistance, please contact support:</p>
+<a href="https://docs.google.com/forms/d/e/1FAIpQLSfOt-UrLB_rBF6NdpPHG2iTaB8B5AcZIfkkQfOTslpsAULRBg/viewform?usp=header" target="_blank" class="button button-small">Support Form</a>
+<p class="contact-note">We typically respond within 24-48 hours.</p>
+<hr>
 </div>
 </div>
 </div>
