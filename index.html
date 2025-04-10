@@ -69,6 +69,8 @@ z-index: 2000;
 display: flex;
 justify-content: center;
 align-items: center;
+overflow-y: auto; /* Enable vertical scrolling */
+padding: 20px 0; /* Add some padding to avoid content touching screen edges */
 }
 .signin-container {
 background-color: var(--card-bg);
@@ -81,6 +83,12 @@ display: flex;
 flex-direction: column;
 align-items: center;
 text-align: center;
+max-height: 90vh; /* Limit height to 90% of viewport height */
+overflow-y: auto; /* Enable scrolling within the container */
+margin: 20px 0; /* Add some margin to prevent it from touching edges */
+}
+.signin-container .form-group {
+margin-bottom: 1rem; /* Reduced from 1.25rem */
 }
 .signin-container h2 {
 color: var(--primary-color);
@@ -100,7 +108,7 @@ width: 100%;
 display: flex;
 flex-direction: column;
 align-items: center;
-margin-top: 1rem;
+margin-top: 0.75rem; /* Reduced from 1rem */
 }
 .signin-container h2,
 .signin-error,
@@ -120,13 +128,13 @@ max-height: 50px;
 margin-top: 0.5rem;
 }
 .signin-contact-info h3 {
-margin-top: 5px;
-margin-bottom: 10px;
+margin-top: 3px; /* Reduced from 5px */
+margin-bottom: 6px; /* Reduced from 10px */
 font-size: 1em;
 font-weight: 600;
 }
 .signin-contact-info p {
-margin-bottom: 10px;
+margin-bottom: 8px; /* Reduced from 10px */
 line-height: 1.4;
 }
 .signin-contact-info .contact-note {
@@ -139,7 +147,7 @@ font-style: italic;
 border: 0;
 height: 1px;
 background-color: #e0e0e0;
-margin: 15px 0;
+margin: 10px 0;
 width: 100%;
 }
 .button-small {
@@ -552,6 +560,23 @@ font-weight: bold;
 color: #444;
 }
 /* Mobile Styles */
+/* Responsive adjustments */
+@media (max-height: 700px) {
+.signin-container {
+padding: 1.5rem;
+}
+.signin-container h2 {
+margin-bottom: 1rem;
+}
+.button-small {
+padding: 4px 8px;
+}
+}
+@media (max-height: 600px) {
+.signin-container {
+padding: 1rem;
+}
+}
 @media (max-width: 768px) {
 .button {
 width: 100%;
@@ -635,6 +660,11 @@ max-height: 250px;
 <p id="signin-error" class="signin-error" aria-live="polite"></p>
 <!-- Contact Info Section -->
 <div class="signin-contact-info">
+<hr>
+<h3>User Guide</h3>
+<p>Need help getting started? Download our comprehensive user guide:</p>
+<a href="Attendance Recorder App User Guide.pdf" class="button button-small" download>Download User Guide</a>
+<p class="contact-note">The guide contains detailed instructions for all app features, read it before resorting to contact support</p>
 <hr>
 <h3>Need Help?</h3>
 <p>If you're having trouble signing in or need assistance, please contact support:</p>
@@ -837,6 +867,7 @@ max-height: 250px;
 <li>Backup your data regularly from the Backup tab</li>
 <li>Export data as needed for record keeping</li>
 </ul>
+<p>For more detailed instructions, you can <span class="user-guide-link" style="color: var(--primary-color); text-decoration: underline; cursor: pointer;" onclick="window.open('Attendance Recorder App User Guide.pdf', '_blank')">access our comprehensive user guide here</span>.</p>
 <h3>Development Team</h3>
 <p>This application was developed by a medical student at Faculty of Medicine, Ain Shams University as part of ongoing efforts to integrate technological solutions into educational processes at the university.</p>
 </div>
@@ -846,8 +877,13 @@ max-height: 250px;
 <div class="card">
 <h2>Contact Support</h2>
 <div class="signin-contact-info">
+<h3>User Guide</h3>
+<p>Before contacting support, please check our comprehensive user guide:</p>
+<a href="Attendance Recorder App User Guide.pdf" class="button button-small" download>Download User Guide</a>
+<p class="contact-note">The guide contains detailed instructions for all app features.</p>
+<hr>
 <h3>Need Help?</h3>
-<p>If you're having trouble with the application or need assistance, please contact support:</p>
+<p>If you're still having trouble with the application after reading the user guide, or need assistance, please contact support:</p>
 <a href="https://docs.google.com/forms/d/e/1FAIpQLSfOt-UrLB_rBF6NdpPHG2iTaB8B5AcZIfkkQfOTslpsAULRBg/viewform?usp=header" target="_blank" class="button button-small">Support Form</a>
 <p class="contact-note">We typically respond within 24-48 hours.</p>
 <hr>
