@@ -1060,6 +1060,8 @@ user.password === password
 );
 if (user) {
 localStorage.setItem(AUTH_STATUS_KEY, 'authenticated');
+// Store the user's email for later use in exports
+localStorage.setItem(AUTH_STATUS_KEY + '_email', email.toLowerCase());
 signinOverlay.style.display = 'none';
 return true;
 } else {
@@ -1284,27 +1286,17 @@ lastBackupTime.textContent = 'Error';
 function prepareDataForBackup() {
 // Create a new workbook
 const workbook = XLSX.utils.book_new();
+// Get user email (or use a default value if not available)
+const userEmail = localStorage.getItem(AUTH_STATUS_KEY + '_email') || 'Not Available';
 // Counter for unique sheet names
 let sheetCounter = {};
 // For each session, create a separate sheet with proper format
 sessions.forEach(session => {
 const data = [
-['Number', 'Student ID', 'Location', 'Log Date', 'Log Time']
+['Number', 'Student ID', 'Location', 'Log Date', 'Log Time', 'Application User Email', 'Source File', 'Source Sheet']
 ];
-// Add each scan in the proper format
-session.scans.forEach(scan => {
-const scanDate = new Date(scan.time);
-data.push([
-scan.id,                // Row number
-scan.content,           // QR code content (Student ID)
-session.location,       // Location
-formatDate(scanDate),   // Date
-formatTime(scanDate)    // Time
-]);
-});
-// Only create sheet if session has scans
-if (data.length > 1) {
-const ws = XLSX.utils.aoa_to_sheet(data);
+// Create base filename for this session
+const fileName = `qr_scanner_backup_${formatDateTimeForFile(new Date())}.xlsx`;
 // Create unique sheet name based on location
 let baseSheetName = session.location.substring(0, 25).replace(/[^a-z0-9]/gi, '_');
 if (baseSheetName.length === 0) baseSheetName = "Session";
@@ -1317,6 +1309,23 @@ sheetCounter[baseSheetName] = 1;
 }
 // Excel sheet names cannot exceed 31 characters
 const sheetName = baseSheetName.substring(0, 31);
+// Add each scan in the proper format
+session.scans.forEach(scan => {
+const scanDate = new Date(scan.time);
+data.push([
+scan.id,                // Row number
+scan.content,           // QR code content (Student ID)
+session.location,       // Location
+formatDate(scanDate),   // Date
+formatTime(scanDate),   // Time
+userEmail,              // Application User Email
+fileName,               // Source File 
+sheetName               // Source Sheet
+]);
+});
+// Only create sheet if session has scans
+if (data.length > 1) {
+const ws = XLSX.utils.aoa_to_sheet(data);
 try {
 XLSX.utils.book_append_sheet(workbook, ws, sheetName);
 } catch (e) {
@@ -3898,18 +3907,23 @@ alert("Export functionality is not available. Please check your internet connect
 return;
 }
 const fileName = `${session.location.replace(/[^a-z0-9]/gi, '_')}_${formatDateTimeForFile(new Date(session.dateTime))}.xlsx`;
-// Prepare data 
+// Get user email (or use a default value if not available)
+const userEmail = localStorage.getItem(AUTH_STATUS_KEY + '_email') || 'Not Available';
+// Prepare data with added columns
 const data = [
-['Number', 'Student ID', 'Location', 'Log Date', 'Log Time']
+['Number', 'Student ID', 'Location', 'Log Date', 'Log Time', 'Application User Email', 'Source File', 'Source Sheet']
 ];
 session.scans.forEach(scan => {
 const scanDate = new Date(scan.time);
 data.push([
 scan.id,                // Row number (previously ID)
 scan.content,           // QR code content is now Student ID
-session.location,
-formatDate(scanDate),
-formatTime(scanDate)
+session.location,       // Location
+formatDate(scanDate),   // Log Date
+formatTime(scanDate),   // Log Time
+userEmail,              // Application User Email
+fileName,               // Source File
+"Scans"                 // Source Sheet
 ]);
 });
 // Create workbook
@@ -3950,9 +3964,11 @@ return;
 console.log("Attempting to export all sessions:", sessions);
 const fileName = `QR_Scan_All_Sessions_${formatDateTimeForFile(new Date())}.xlsx`;
 const wb = XLSX.utils.book_new();
+// Get user email (or use a default value if not available)
+const userEmail = localStorage.getItem(AUTH_STATUS_KEY + '_email') || 'Not Available';
 // First, create an "AllSessions" sheet with every scan
 const allScansData = [
-['Number', 'Student ID', 'Location', 'Date', 'Time', 'Session ID']
+['Number', 'Student ID', 'Location', 'Date', 'Time', 'Session ID', 'Application User Email', 'Source File', 'Source Sheet']
 ];
 let globalCounter = 1;
 // Iterate through each session and add its scans to the master list
@@ -3970,7 +3986,10 @@ scan.content || "",
 session.location || "Unknown",
 formatDate(scanDate),
 formatTime(scanDate),
-session.id || "Unknown"
+session.id || "Unknown",
+userEmail,                // Application User Email
+fileName,                 // Source File
+"AllScans"                // Source Sheet
 ]);
 } catch (error) {
 console.error("Error processing scan:", scan, error);
@@ -3994,8 +4013,14 @@ console.warn("Skipping empty session:", session);
 return;
 }
 const sessionData = [
-['Number', 'Student ID', 'Location', 'Date', 'Time']
+['Number', 'Student ID', 'Location', 'Date', 'Time', 'Application User Email', 'Source File', 'Source Sheet']
 ];
+// Create a sheet name from location or use a default
+let sheetName = session.location 
+? session.location.substring(0, 25).replace(/[^a-z0-9]/gi, '_') 
+: "Session";
+// Ensure unique sheet name by adding index if needed
+sheetName = sheetName.substring(0, 27) + "_" + (index + 1);
 session.scans.forEach(scan => {
 try {
 const scanDate = new Date(scan.time);
@@ -4004,18 +4029,15 @@ scan.id || sessionData.length,
 scan.content || "",
 session.location || "Unknown",
 formatDate(scanDate),
-formatTime(scanDate)
+formatTime(scanDate),
+userEmail,                // Application User Email
+fileName,                 // Source File
+sheetName                 // Source Sheet
 ]);
 } catch (error) {
 console.error("Error processing scan for session sheet:", scan, error);
 }
 });
-// Create a sheet name from location or use a default
-let sheetName = session.location 
-? session.location.substring(0, 25).replace(/[^a-z0-9]/gi, '_') 
-: "Session";
-// Ensure unique sheet name by adding index if needed
-sheetName = sheetName.substring(0, 27) + "_" + (index + 1);
 // Create and add the sheet
 const sessionSheet = XLSX.utils.aoa_to_sheet(sessionData);
 XLSX.utils.book_append_sheet(wb, sessionSheet, sheetName);
