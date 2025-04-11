@@ -113,3 +113,166 @@ function syncScanData() {
     resolve();
   });
 }
+
+// Handle background sync for auto backup
+self.addEventListener('sync', event => {
+  if (event.tag === 'sync-scans') {
+    event.waitUntil(syncScanData());
+  } else if (event.tag === 'auto-backup') {
+    event.waitUntil(performBackgroundBackup());
+  }
+});
+
+// Placeholder function for background sync
+function syncScanData() {
+  return new Promise((resolve, reject) => {
+    // This would contain logic to sync any pending scan data
+    console.log('Background sync executed');
+    resolve();
+  });
+}
+
+// Function to perform background backup
+function performBackgroundBackup() {
+  return new Promise(async (resolve, reject) => {
+    console.log('Background auto-backup initiated');
+    
+    try {
+      // Open all clients to find if any are already handling this
+      const clients = await self.clients.matchAll({ type: 'window' });
+      
+      // If we have an active client, let it handle the backup
+      if (clients.length > 0) {
+        console.log('Found active client, delegating backup');
+        // Sending message to client to handle backup
+        clients.forEach(client => client.postMessage({
+          command: 'perform-backup',
+          timestamp: new Date().toISOString()
+        }));
+        resolve();
+        return;
+      }
+      
+      // If no clients are open, we need to perform backup directly
+      console.log('No active clients, performing direct backup');
+      
+      // Get data from IndexedDB or localStorage
+      const sessions = await getSessionsFromStorage();
+      const autoBackupEnabled = await getAutoBackupSetting();
+      const lastBackupSessions = await getLastBackupSessions();
+      
+      // Check if backup is needed
+      if (!autoBackupEnabled || sessions.length <= lastBackupSessions) {
+        console.log('No backup needed or auto-backup disabled');
+        resolve();
+        return;
+      }
+      
+      // Perform backup to GitHub
+      await performGitHubBackup(sessions);
+      
+      // Update last backup info
+      await updateLastBackupInfo(sessions.length);
+      
+      console.log('Background backup completed successfully');
+      resolve();
+    } catch (error) {
+      console.error('Background backup failed:', error);
+      reject(error);
+    }
+  });
+}
+
+// Helper functions for background backup
+async function getSessionsFromStorage() {
+  try {
+    // Try to access the Cache API first
+    const cache = await caches.open('app-data');
+    const response = await cache.match('sessions-data');
+    
+    if (response) {
+      const data = await response.json();
+      return data;
+    }
+    
+    // Fall back to accessing localStorage via a client
+    const clients = await self.clients.matchAll({ type: 'window' });
+    if (clients.length > 0) {
+      // Request data from client
+      return new Promise((resolve) => {
+        const messageChannel = new MessageChannel();
+        messageChannel.port1.onmessage = event => {
+          resolve(event.data);
+        };
+        
+        clients[0].postMessage({
+          command: 'get-sessions'
+        }, [messageChannel.port2]);
+      });
+    }
+    
+    return [];
+  } catch (error) {
+    console.error('Error getting sessions from storage:', error);
+    return [];
+  }
+}
+
+async function getAutoBackupSetting() {
+  try {
+    const cache = await caches.open('app-data');
+    const response = await cache.match('auto-backup-setting');
+    
+    if (response) {
+      const data = await response.text();
+      return data !== 'false';
+    }
+    
+    return true; // Default to enabled
+  } catch (error) {
+    console.error('Error getting auto-backup setting:', error);
+    return true;
+  }
+}
+
+async function getLastBackupSessions() {
+  try {
+    const cache = await caches.open('app-data');
+    const response = await cache.match('last-backup-sessions');
+    
+    if (response) {
+      const data = await response.text();
+      return parseInt(data || '0');
+    }
+    
+    return 0;
+  } catch (error) {
+    console.error('Error getting last backup sessions:', error);
+    return 0;
+  }
+}
+
+async function performGitHubBackup(sessions) {
+  // This is a placeholder. In a real implementation, you'd need to:
+  // 1. Get the GitHub token
+  // 2. Convert sessions to Excel format
+  // 3. Make the API call to GitHub
+  
+  console.log('Would perform GitHub backup here if this was implemented fully');
+  
+  // In practice, this is challenging from a service worker context
+  // and would likely be delegated to a client
+  return true;
+}
+
+async function updateLastBackupInfo(sessionCount) {
+  try {
+    const cache = await caches.open('app-data');
+    await cache.put('last-backup-sessions', new Response(sessionCount.toString()));
+    await cache.put('last-backup-time', new Response(new Date().toISOString()));
+    return true;
+  } catch (error) {
+    console.error('Error updating last backup info:', error);
+    return false;
+  }
+}

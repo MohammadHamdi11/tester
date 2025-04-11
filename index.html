@@ -1714,99 +1714,88 @@ console.log(`Token format check:
 `);
 return true;
 }
-// Register background sync for auto-backup
-async function registerBackupSync() {
-if ('serviceWorker' in navigator && 'SyncManager' in window) {
-try {
-// Check if we need a backup
-if (!isBackupNeeded()) {
-console.log('No new data to backup, skipping sync registration');
-return false;
+//========================================================================================================== BACKGROUND SYNC FUNCTIONS ========//
+// Register for background sync
+async function registerBackgroundSync() {
+    if (!('serviceWorker' in navigator) || !('SyncManager' in window)) {
+        console.log('Background Sync not supported');
+        return false;
+    }
+    
+    try {
+        // Store important data in cache for service worker to access
+        await updateBackgroundSyncCache();
+        
+        // Get the service worker registration
+        const registration = await navigator.serviceWorker.ready;
+        
+        // Register for background sync
+        await registration.sync.register('auto-backup');
+        
+        console.log('Background sync registered for auto-backup');
+        return true;
+    } catch (error) {
+        console.error('Background sync registration failed:', error);
+        return false;
+    }
 }
-// Get service worker registration
-const registration = await navigator.serviceWorker.ready;
-// Save current backup state so service worker knows what to backup
-localStorage.setItem('BACKUP_SYNC_NEEDED', 'true');
-localStorage.setItem('BACKUP_SYNC_TIMESTAMP', new Date().toISOString());
-// Register sync task
-await registration.sync.register('backup-sync');
-console.log('Background sync for backup registered');
-return true;
-} catch (error) {
-console.error('Error registering background sync:', error);
-return false;
+
+// Update the cache with the latest data needed for background sync
+async function updateBackgroundSyncCache() {
+    if (!('caches' in window)) {
+        console.log('Cache API not supported');
+        return false;
+    }
+    
+    try {
+        const cache = await caches.open('app-data');
+        
+        // Store current sessions data
+        await cache.put('sessions-data', new Response(JSON.stringify(sessions)));
+        
+        // Store auto-backup setting
+        const autoBackupEnabled = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) !== 'false';
+        await cache.put('auto-backup-setting', new Response(autoBackupEnabled.toString()));
+        
+        // Store last backup sessions count
+        const lastBackupSessions = localStorage.getItem(LAST_BACKUP_SESSIONS_KEY) || '0';
+        await cache.put('last-backup-sessions', new Response(lastBackupSessions));
+        
+        console.log('Background sync cache updated');
+        return true;
+    } catch (error) {
+        console.error('Error updating background sync cache:', error);
+        return false;
+    }
 }
-} else {
-console.log('Background sync not supported');
-return false;
-}
-}
-// Store backup data in cache for service worker to access
-async function storeBackupDataForSync() {
-if ('caches' in window) {
-try {
-// Prepare the data that needs to be backed up
-const workbook = prepareDataForBackup();
-const excelData = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
-// Create a backup data object
-const backupData = {
-timestamp: new Date().toISOString(),
-fileName: `qr_scanner_backup_${formatDateTimeForFile(new Date())}.xlsx`,
-excelData: excelData,
-sessionCount: sessions.length
-};
-// Store GitHub token in cache
-const token = getGitHubToken();
-if (token) {
-const tokenData = {
-token: token,
-repoOwner: DEFAULT_GITHUB_OWNER.toString().trim(),
-repoName: DEFAULT_GITHUB_REPO.toString().trim(),
-filePath: DEFAULT_GITHUB_PATH.toString().trim().replace(/^\/|\/$/g, ''),
-branchName: DEFAULT_GITHUB_BRANCH.toString().trim()
-};
-// Open cache and store the token data
-const cache = await caches.open(CACHE_NAME);
-await cache.put('github-token', new Response(JSON.stringify(tokenData)));
-// Store backup data in cache
-await cache.put('backup-data', new Response(JSON.stringify(backupData)));
-console.log('Backup data stored in cache for background sync');
-return true;
-} else {
-console.log('No GitHub token available for background sync');
-return false;
-}
-} catch (error) {
-console.error('Error storing backup data for sync:', error);
-return false;
-}
-} else {
-console.log('Cache API not supported');
-return false;
-}
-}
-// Setup online/offline event listeners with background sync support
-window.addEventListener('online', async () => {
-updateConnectionStatus();
-// Check if auto-backup is enabled
-const autoBackupEnabled = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) !== 'false';
-if (autoBackupEnabled) {
-// Store backup data in cache for potential future background sync
-await storeBackupDataForSync();
-// Try auto-backup immediately if the app is open
-tryAutoBackup();
-// Register background sync for future backup if connection is lost again
-registerBackupSync();
-}
+
+// Listen for messages from service worker
+navigator.serviceWorker.addEventListener('message', async (event) => {
+    if (event.data && event.data.command === 'perform-backup') {
+        console.log('Received backup command from service worker');
+        await tryAutoBackup();
+    } else if (event.data && event.data.command === 'get-sessions') {
+        // Respond with sessions data if requested
+        event.ports[0].postMessage(sessions);
+    }
 });
-// Add a message listener to handle Service Worker messages
-if ('serviceWorker' in navigator) {
-navigator.serviceWorker.addEventListener('message', event => {
-if (event.data && event.data.action === 'trigger-backup') {
-console.log('Received backup trigger from Service Worker', event.data.timestamp);
-tryAutoBackup();
-}
-});
+
+// Function to handle connectivity change and trigger background sync
+function handleConnectivityChange() {
+    if (navigator.onLine) {
+        console.log('Connection restored, registering for background sync');
+        // Update cache first
+        updateBackgroundSyncCache()
+            .then(() => registerBackgroundSync())
+            .then(success => {
+                if (success) {
+                    console.log('Background sync registered successfully');
+                }
+            });
+    }
+    
+    // Always update the UI
+    updateConnectionStatus();
 }
 //========================================================================================================== INITIALIZATION ========//
 // Check if jsQR is already loaded from the local file
@@ -1831,6 +1820,8 @@ localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, 'true');
 // Setup online/offline event listeners
 window.addEventListener('online', () => {
 updateConnectionStatus();
+window.addEventListener('online', handleConnectivityChange);
+window.addEventListener('offline', updateConnectionStatus);
 // Try auto-backup when connection is restored
 tryAutoBackup();
 });
@@ -1897,33 +1888,16 @@ document.head.appendChild(script);
 });
 }
 //========================================================================================================== SERVICE WORKER REGISTRATION FOR PWA ========//
-// Register service worker for PWA
-function registerServiceWorker() {
 if ('serviceWorker' in navigator) {
 window.addEventListener('load', () => {
 navigator.serviceWorker.register('./sw.js')
 .then(registration => {
 console.log('ServiceWorker registration successful with scope: ', registration.scope);
-// Add message listener to handle messages from the page
-navigator.serviceWorker.addEventListener('message', event => {
-if (event.data && event.data.action === 'store-backup-data') {
-console.log('Storing backup data from page');
-}
-});
-// Check if auto-backup is enabled and register background sync
-const autoBackupEnabled = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) !== 'false';
-if (autoBackupEnabled && 'SyncManager' in window) {
-// Register background sync at startup
-registration.sync.register('backup-sync')
-.then(() => console.log('Background sync registered at startup'))
-.catch(err => console.error('Error registering background sync:', err));
-}
 })
 .catch(err => {
 console.log('ServiceWorker registration failed: ', err);
 });
 });
-}
 }
 //========================================================================================================== MANUAL ENTRY FUNCTIONS ========//
 // Setup manual entry button
@@ -3871,13 +3845,31 @@ startAutoSave();
 }
 // Save completed sessions to local storage
 function saveSessionsToStorage() {
-try {
-localStorage.setItem(COMPLETED_SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
-console.log("Completed sessions saved:", sessions.length);
-} catch (error) {
-console.error("Error saving completed sessions:", error);
-alert("Failed to save sessions. Your device might be low on storage space.");
-}
+    try {
+        localStorage.setItem(COMPLETED_SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
+        console.log("Completed sessions saved:", sessions.length);
+        
+        // Update background sync cache whenever sessions are saved
+        updateBackgroundSyncCache()
+            .then(() => {
+                // If we're online, register for background sync
+                if (navigator.onLine) {
+                    return registerBackgroundSync();
+                }
+                return false;
+            })
+            .then(success => {
+                if (success) {
+                    console.log('Background sync registered after session save');
+                }
+            })
+            .catch(error => {
+                console.error('Error in background sync after saving:', error);
+            });
+    } catch (error) {
+        console.error("Error saving completed sessions:", error);
+        alert("Failed to save sessions. Your device might be low on storage space.");
+    }
 }
 // Load sessions from local storage
 function loadSessionsFromStorage() {
