@@ -1017,7 +1017,6 @@ max-height: 250px;
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 //========================================================================================================== SIGN IN AND AUTHENTICATION ========//
-//========================================================================================================== SIGN IN AND AUTHENTICATION ========//
 // Authentication variables and functions
 const signinOverlay = document.getElementById('signin-overlay');
 const signinButton = document.getElementById('signin-button');
@@ -1025,12 +1024,20 @@ const emailInput = document.getElementById('email');
 const passwordInput = document.getElementById('password');
 const signinError = document.getElementById('signin-error');
 const AUTH_STATUS_KEY = 'qrScannerAuthStatus';
-const USER_EMAIL_KEY = 'qrScannerUserEmail'; // Added this line to store user email
+const USER_EMAIL_KEY = 'qrScannerUserEmail'; // Key for storing user email
 // Check if user is already authenticated
 function checkAuthentication() {
 const authStatus = localStorage.getItem(AUTH_STATUS_KEY);
 if (authStatus === 'authenticated') {
 signinOverlay.style.display = 'none';
+// Check if we have the user email, if not we'll need to re-authenticate
+const userEmail = localStorage.getItem(USER_EMAIL_KEY);
+if (!userEmail) {
+// Force re-authentication to capture email
+localStorage.removeItem(AUTH_STATUS_KEY);
+signinOverlay.style.display = 'flex';
+loadUserCredentials();
+}
 } else {
 signinOverlay.style.display = 'flex';
 loadUserCredentials();
@@ -1061,8 +1068,9 @@ user.email.toLowerCase() === email.toLowerCase() &&
 user.password === password
 );
 if (user) {
+// Store authentication status and user email
 localStorage.setItem(AUTH_STATUS_KEY, 'authenticated');
-localStorage.setItem(USER_EMAIL_KEY, email.toLowerCase()); // Store the user's email
+localStorage.setItem(USER_EMAIL_KEY, email.toLowerCase());
 console.log("User authenticated and email stored:", email.toLowerCase());
 signinOverlay.style.display = 'none';
 return true;
@@ -1094,8 +1102,45 @@ signinError.textContent = '';
 passwordInput.addEventListener('input', () => {
 signinError.textContent = '';
 });
-// Check authentication status when the page loads
-document.addEventListener('DOMContentLoaded', checkAuthentication);
+// Add this to the initialization section
+document.addEventListener('DOMContentLoaded', function() {
+// Save the current user email in the active session object when creating a new session
+if (confirmSessionBtn) {
+const originalConfirmClickHandler = confirmSessionBtn.onclick;
+confirmSessionBtn.onclick = function() {
+// Get the current user email
+const userEmail = localStorage.getItem(USER_EMAIL_KEY);
+if (!userEmail) {
+alert("Please sign in again to capture your email address.");
+localStorage.removeItem(AUTH_STATUS_KEY);
+checkAuthentication();
+return;
+}
+// Continue with the original handler
+if (originalConfirmClickHandler) {
+originalConfirmClickHandler.call(this);
+}
+};
+}
+});
+// Function to ensure user email is available - will be used in export functions
+function ensureUserEmail() {
+let userEmail = localStorage.getItem(USER_EMAIL_KEY);
+if (!userEmail || userEmail === 'null' || userEmail === 'undefined') {
+// First try to get it without prompting
+if (emailInput && emailInput.value && emailInput.value.includes('@')) {
+userEmail = emailInput.value.trim().toLowerCase();
+localStorage.setItem(USER_EMAIL_KEY, userEmail);
+} else {
+// If still not available, prompt the user
+userEmail = prompt("Please enter your email for record-keeping purposes:", "") || "unknown@user.com";
+if (userEmail && userEmail !== "unknown@user.com") {
+localStorage.setItem(USER_EMAIL_KEY, userEmail.toLowerCase());
+}
+}
+}
+return userEmail;
+}
 //========================================================================================================== ELEMENTS ========//
 const tabs = document.querySelectorAll('.tab');
 const tabContents = document.querySelectorAll('.tab-content');
@@ -3904,9 +3949,9 @@ alert("Export functionality is not available. Please check your internet connect
 return;
 }
 const fileName = `${session.location.replace(/[^a-z0-9]/gi, '_')}_${formatDateTimeForFile(new Date(session.dateTime))}.xlsx`;
-// Get current user email - with robust fallback
-const userEmail = localStorage.getItem(USER_EMAIL_KEY) || 'unknown@user.com';
-console.log("Retrieved user email for export:", userEmail);
+// Get current user email using our robust function
+const userEmail = ensureUserEmail();
+console.log("User email for export:", userEmail);
 // Prepare data with additional columns
 const data = [
 ['Number', 'Student ID', 'Location', 'Log Date', 'Log Time', 'Application User Email', 'Source File', 'Source Sheet']
@@ -3958,11 +4003,10 @@ console.error("XLSX library not loaded");
 alert("Export functionality is not available. Please check your internet connection.");
 return;
 }
-// Get current user email - with robust fallback
-const userEmail = localStorage.getItem(USER_EMAIL_KEY) || 'unknown@user.com';
-console.log("Retrieved user email for export all:", userEmail);
-// First, let's debug what we have
-console.log("Attempting to export all sessions:", sessions);
+// Get current user email using our robust function
+const userEmail = ensureUserEmail();
+console.log("User email for export all:", userEmail);
+// Create filename
 const fileName = `QR_Scan_All_Sessions_${formatDateTimeForFile(new Date())}.xlsx`;
 const wb = XLSX.utils.book_new();
 // First, create an "AllSessions" sheet with every scan
@@ -4031,7 +4075,7 @@ formatDate(scanDate),
 formatTime(scanDate),
 userEmail,                      // User email
 fileName,                       // Source file
-finalSheetName                  // Source sheet (the actual sheet name)
+finalSheetName                  // Source sheet name
 ]);
 } catch (error) {
 console.error("Error processing scan for session sheet:", scan, error);
