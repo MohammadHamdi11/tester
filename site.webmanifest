@@ -1,21 +1,44 @@
 {
-  "name": "ASU-QRScanner-webapp",
-  "short_name": "ASU-QRScanner",
+  "name": "Attendance Recorder App",
+  "short_name": "Attendance Recorder",
+  "start_url": "https://mohammadhamdi11.github.io/MedASUAttendanceManagementSystem/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#24325f",
   "icons": [
     {
-      "src": "/web-app-manifest-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable"
+      "src": "favicon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png"
     },
     {
-      "src": "/web-app-manifest-512x512.png",
+      "src": "web-app-manifest-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "web-app-manifest-512x512.png",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
+      "type": "image/png"
+    },
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "152x152",
+      "type": "image/png"
     }
   ],
-  "theme_color": "#ffffff",
-  "background_color": "#ffffff",
-  "display": "standalone"
+  "description": "Attendance Recording App designed especially for the Faculty of Medicine, ASU.",
+  "orientation": "natural",
+  "id": "/attendance-recorder",
+  "scope": "https://mohammadhamdi11.github.io/MedASUAttendanceManagementSystem/",
+  "lang": "en",
+  "display_override": [
+    "standalone",
+    "window-controls-overlay"
+  ],
+  "dir": "rtl",
+  "categories": [
+    "productivity",
+    "utilities"
+  ]
 }
