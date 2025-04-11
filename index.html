@@ -1017,6 +1017,7 @@ max-height: 250px;
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 //========================================================================================================== SIGN IN AND AUTHENTICATION ========//
+//========================================================================================================== SIGN IN AND AUTHENTICATION ========//
 // Authentication variables and functions
 const signinOverlay = document.getElementById('signin-overlay');
 const signinButton = document.getElementById('signin-button');
@@ -1062,6 +1063,7 @@ user.password === password
 if (user) {
 localStorage.setItem(AUTH_STATUS_KEY, 'authenticated');
 localStorage.setItem(USER_EMAIL_KEY, email.toLowerCase()); // Store the user's email
+console.log("User authenticated and email stored:", email.toLowerCase());
 signinOverlay.style.display = 'none';
 return true;
 } else {
@@ -1081,7 +1083,9 @@ if (!password) {
 signinError.textContent = 'Please enter your password';
 return;
 }
-authenticateUser(email, password);
+if (authenticateUser(email, password)) {
+console.log("Authentication successful, email stored:", email);
+}
 });
 // Clear error message when user starts typing
 emailInput.addEventListener('input', () => {
@@ -3900,8 +3904,9 @@ alert("Export functionality is not available. Please check your internet connect
 return;
 }
 const fileName = `${session.location.replace(/[^a-z0-9]/gi, '_')}_${formatDateTimeForFile(new Date(session.dateTime))}.xlsx`;
-// Get current user email
+// Get current user email - with robust fallback
 const userEmail = localStorage.getItem(USER_EMAIL_KEY) || 'unknown@user.com';
+console.log("Retrieved user email for export:", userEmail);
 // Prepare data with additional columns
 const data = [
 ['Number', 'Student ID', 'Location', 'Log Date', 'Log Time', 'Application User Email', 'Source File', 'Source Sheet']
@@ -3953,12 +3958,13 @@ console.error("XLSX library not loaded");
 alert("Export functionality is not available. Please check your internet connection.");
 return;
 }
+// Get current user email - with robust fallback
+const userEmail = localStorage.getItem(USER_EMAIL_KEY) || 'unknown@user.com';
+console.log("Retrieved user email for export all:", userEmail);
 // First, let's debug what we have
 console.log("Attempting to export all sessions:", sessions);
 const fileName = `QR_Scan_All_Sessions_${formatDateTimeForFile(new Date())}.xlsx`;
 const wb = XLSX.utils.book_new();
-// Get current user email
-const userEmail = localStorage.getItem(USER_EMAIL_KEY) || 'unknown@user.com';
 // First, create an "AllSessions" sheet with every scan
 const allScansData = [
 ['Number', 'Student ID', 'Location', 'Date', 'Time', 'Session ID', 'Application User Email', 'Source File', 'Source Sheet']
@@ -4005,14 +4011,15 @@ if (!session.scans || !Array.isArray(session.scans) || session.scans.length === 
 console.warn("Skipping empty session:", session);
 return;
 }
-const sessionData = [
-['Number', 'Student ID', 'Location', 'Date', 'Time', 'Application User Email', 'Source File', 'Source Sheet']
-];
-const sheetName = session.location 
+// Create a sheet name from location or use a default
+let sheetName = session.location 
 ? session.location.substring(0, 25).replace(/[^a-z0-9]/gi, '_') 
 : "Session";
 // Ensure unique sheet name by adding index if needed
 const finalSheetName = sheetName.substring(0, 27) + "_" + (index + 1);
+const sessionData = [
+['Number', 'Student ID', 'Location', 'Date', 'Time', 'Application User Email', 'Source File', 'Source Sheet']
+];
 session.scans.forEach(scan => {
 try {
 const scanDate = new Date(scan.time);
