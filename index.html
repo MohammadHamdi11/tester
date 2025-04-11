@@ -1336,40 +1336,55 @@ return sessions.length > savedLastBackupSessions;
 }
 // Try to automatically backup data if conditions are met
 async function tryAutoBackup() {
-// Don't run if already in progress, offline, or disabled
-if (backupInProgress || !navigator.onLine) {
-return false;
-}
-const autoBackupEnabled = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) !== 'false';
-if (!autoBackupEnabled) {
-console.log('Auto-backup is disabled');
-return false;
-}
-// Get token from combined hardcoded values or localStorage
-const token = getGitHubToken();
-if (!token) {
-console.log('GitHub token not found, auto-backup skipped');
-return false;
-}
-// Check if there's anything new to backup
-if (!isBackupNeeded()) {
-console.log('No new data to backup');
-return false;
-}
-console.log('Starting automatic backup...');
-try {
-// Create Excel workbook
-const workbook = prepareDataForBackup();
-// Create filename with date
-const fileName = `qr_scanner_backup_${formatDateTimeForFile(new Date())}.xlsx`;
-// Perform the backup
-await backupToGitHub(true, fileName, workbook);
-console.log('Auto-backup completed successfully');
-return true;
-} catch (error) {
-console.error('Auto-backup failed:', error);
-return false;
-}
+    // Don't run if already in progress, offline, or disabled
+    if (backupInProgress || !navigator.onLine) {
+        return false;
+    }
+    const autoBackupEnabled = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) !== 'false';
+    if (!autoBackupEnabled) {
+        console.log('Auto-backup is disabled');
+        return false;
+    }
+    // Get token from combined hardcoded values or localStorage
+    const token = getGitHubToken();
+    if (!token) {
+        console.log('GitHub token not found, auto-backup skipped');
+        return false;
+    }
+    // Check if there's anything new to backup
+    if (!isBackupNeeded()) {
+        console.log('No new data to backup');
+        return false;
+    }
+    console.log('Starting automatic backup...');
+    try {
+        // Create Excel workbook
+        const workbook = prepareDataForBackup();
+        // Create filename with date
+        const fileName = `qr_scanner_backup_${formatDateTimeForFile(new Date())}.xlsx`;
+        // Perform the backup
+        await backupToGitHub(true, fileName, workbook);
+        console.log('Auto-backup completed successfully');
+        
+        // Clear any pending backup flag
+        localStorage.removeItem('qrScannerPendingBackup');
+        
+        // Register for the next background sync
+        if ('serviceWorker' in navigator && 'SyncManager' in window) {
+            navigator.serviceWorker.ready
+                .then(registration => {
+                    return registration.sync.register('auto-backup-sync');
+                })
+                .catch(error => {
+                    console.warn('Failed to register next background sync:', error);
+                });
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('Auto-backup failed:', error);
+        return false;
+    }
 }
 // Backup to GitHub
 async function backupToGitHub(isAutoBackup = false, customFileName = null, workbook = null) {
@@ -1714,153 +1729,238 @@ console.log(`Token format check:
 `);
 return true;
 }
-//========================================================================================================== CROSS-PLATFORM BACKUP FUNCTIONS ========//
-// Function to check for pending backups (call this when app starts and when connectivity changes)
-async function checkPendingBackups() {
-  if (!navigator.onLine) {
-    console.log('Offline, skipping pending backup check');
-    return false;
-  }
-  
-  console.log('Checking for pending backups');
-  
-  // Check if auto-backup is enabled
-  const autoBackupEnabled = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) !== 'false';
-  if (!autoBackupEnabled) {
-    console.log('Auto-backup is disabled');
-    return false;
-  }
-  
-  // Check if there are new sessions to back up
-  const savedLastBackupSessions = parseInt(localStorage.getItem(LAST_BACKUP_SESSIONS_KEY) || '0');
-  const currentSessionCount = sessions.length;
-  
-  if (currentSessionCount <= savedLastBackupSessions) {
-    console.log('No new sessions to back up');
-    return false;
-  }
-  
-  // If we have pending backups, set a flag to indicate we need to back up
-  localStorage.setItem('PENDING_BACKUP', 'true');
-  
-  // Try to perform the backup
-  console.log(`Pending backup: ${currentSessionCount - savedLastBackupSessions} new sessions`);
-  return tryAutoBackup();
+//========================================================================================================== BACKGROUND SYNC SUPPORT ========//
+// Register background sync for auto-backup
+function registerBackgroundSync() {
+    if ('serviceWorker' in navigator && 'SyncManager' in window) {
+        navigator.serviceWorker.ready
+            .then(registration => {
+                // Register sync for auto-backup
+                return registration.sync.register('auto-backup-sync');
+            })
+            .then(() => {
+                console.log('Background sync registered for auto-backup');
+            })
+            .catch(error => {
+                console.error('Background sync registration failed:', error);
+                // For iOS and browsers without background sync support
+                if (navigator.onLine) {
+                    console.log('Attempting immediate backup instead');
+                    tryAutoBackup();
+                }
+            });
+    } else {
+        console.log('Background sync not supported, using fallback methods');
+        // Setup polling for online status changes for iOS and other devices without sync
+        window.addEventListener('online', () => {
+            console.log('Connection restored, checking for pending backups');
+            checkForPendingBackups();
+        });
+    }
 }
 
-// Function to mark that we have a pending backup (used when going offline or app is closing)
-function markPendingBackup() {
-  if (isBackupNeeded()) {
-    localStorage.setItem('PENDING_BACKUP', 'true');
-    console.log('Marked pending backup for next connection');
-  }
+// Check for pending backups when app starts or comes online
+function checkForPendingBackups() {
+    const pendingBackup = localStorage.getItem('qrScannerPendingBackup');
+    if (pendingBackup === 'true' && navigator.onLine) {
+        console.log('Found pending backup, executing now');
+        tryAutoBackup().then(success => {
+            if (success) {
+                localStorage.removeItem('qrScannerPendingBackup');
+                console.log('Pending backup completed and cleared');
+            }
+        });
+    }
 }
 
-// Modified handleConnectivityChange for iOS compatibility
-function handleConnectivityChange() {
-  if (navigator.onLine) {
-    console.log('Connection restored, checking for pending backups');
-    checkPendingBackups().then(success => {
-      if (success) {
-        console.log('Pending backup completed successfully');
-        localStorage.removeItem('PENDING_BACKUP');
-      }
+// Listen for messages from service worker
+function setupServiceWorkerMessaging() {
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.addEventListener('message', event => {
+            const message = event.data;
+            
+            if (message && message.type) {
+                switch (message.type) {
+                    case 'PERFORM_BACKUP':
+                        console.log('Received backup request from service worker');
+                        tryAutoBackup();
+                        break;
+                    case 'GET_STORAGE':
+                        // Service worker requests a localStorage item
+                        const value = localStorage.getItem(message.key);
+                        event.ports[0].postMessage(value);
+                        break;
+                    case 'SET_STORAGE':
+                        // Service worker wants to set a localStorage item
+                        localStorage.setItem(message.key, message.value);
+                        break;
+                }
+            }
+        });
+    }
+}
+
+// Enhanced online detection with iOS workaround
+function enhancedOnlineDetection() {
+    // Standard online/offline events
+    window.addEventListener('online', () => {
+        console.log('Browser reports online');
+        updateConnectionStatus();
+        // For iOS, perform a connectivity test
+        if (navigator.userAgent.match(/iPhone|iPad|iPod/i)) {
+            testConnectivity()
+                .then(isOnline => {
+                    if (isOnline) {
+                        console.log('Connectivity test confirms online status');
+                        registerBackgroundSync();
+                    }
+                });
+        } else {
+            registerBackgroundSync();
+        }
     });
-  } else {
-    console.log('Connection lost, marking for future backup');
-    markPendingBackup();
-  }
-  
-  // Always update the UI
-  updateConnectionStatus();
+    
+    window.addEventListener('offline', () => {
+        console.log('Browser reports offline');
+        updateConnectionStatus();
+    });
+    
+    // Initial connectivity check
+    if (navigator.onLine) {
+        testConnectivity()
+            .then(isOnline => {
+                if (isOnline) {
+                    console.log('Initial connectivity test confirms online status');
+                    registerBackgroundSync();
+                }
+            });
+    }
+}
+
+// Test actual connectivity by making a lightweight request
+function testConnectivity() {
+    return fetch('https://www.cloudflare.com/cdn-cgi/trace', { 
+        mode: 'no-cors',
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' }
+    })
+    .then(() => true)
+    .catch(() => false);
+}
+
+// Handle iOS focus events for background sync
+function setupIOSFocusEvents() {
+    // iOS specific events for app coming to foreground
+    if (navigator.userAgent.match(/iPhone|iPad|iPod/i)) {
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                console.log('App came to foreground on iOS');
+                if (navigator.onLine) {
+                    checkForPendingBackups();
+                }
+            }
+        });
+        
+        // For iOS PWA
+        window.addEventListener('focus', () => {
+            console.log('Window focus event on iOS');
+            if (navigator.onLine) {
+                checkForPendingBackups();
+            }
+        });
+    }
+}
+
+// Save data on app closing/pausing on iOS
+function setupAppLifecycleEvents() {
+    // Handle iOS app pausing/closing
+    if (navigator.userAgent.match(/iPhone|iPad|iPod/i)) {
+        window.addEventListener('pagehide', () => {
+            console.log('Page hide event - app may be closing on iOS');
+            if (navigator.onLine && isBackupNeeded()) {
+                localStorage.setItem('qrScannerPendingBackup', 'true');
+            }
+        });
+        
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') {
+                console.log('Visibility hidden - app may be going to background on iOS');
+                if (navigator.onLine && isBackupNeeded()) {
+                    localStorage.setItem('qrScannerPendingBackup', 'true');
+                }
+            }
+        });
+    }
 }
 //========================================================================================================== INITIALIZATION ========//
 // Check if jsQR is already loaded from the local file
 document.addEventListener('DOMContentLoaded', function() {
-preloadSuccessSound();
-console.log("DOM fully loaded");
-loadSessionsFromStorage();
-checkForRecoverableSession();
-updateHistoryView();
-// Initialize backup tab
-updateConnectionStatus();
-loadGitHubToken();
-updateLastBackupTimeDisplay();
-// Setup manual entry functionality
-setupManualEntryButton();
-// Setup button event listeners
-setupButtonEventListeners();
-// Enable auto-backup by default
-if (localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) === null) {
-localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, 'true');
-}
-// Setup online/offline event listeners
-window.addEventListener('online', () => {
-updateConnectionStatus();
-window.addEventListener('online', handleConnectivityChange);
-window.addEventListener('offline', updateConnectionStatus);
-// Try auto-backup when connection is restored
-tryAutoBackup();
-});
-window.addEventListener('offline', updateConnectionStatus);
-// Check if jsQR is already defined (from the script tag in HTML)
-if (typeof jsQR === 'function') {
-console.log("jsQR is already loaded from local file");
-jsQRLoaded = true;
-} else {
-console.log("jsQR not detected, will attempt to load");
-loadJsQR()
-.then(() => console.log("jsQR library loaded and ready"))
-.catch(error => {
-console.error("Error loading jsQR:", error);
-alert("Failed to load QR code scanning library. Please check your files and try again.");
-});
-}
-  // Check for pending backups when the app starts
-  if (navigator.onLine && localStorage.getItem('PENDING_BACKUP') === 'true') {
-    console.log('Found pending backup flag on startup');
-    setTimeout(() => {
-      checkPendingBackups().then(success => {
-        if (success) {
-          console.log("Pending backup completed on startup");
-          localStorage.removeItem('PENDING_BACKUP');
-        }
-      });
-    }, 3000); // Give the app time to initialize first
-  }
-// Load last backup session count
-lastBackupSessions = parseInt(localStorage.getItem(LAST_BACKUP_SESSIONS_KEY) || '0');
-// Try auto-backup if online and there are new sessions
-if (navigator.onLine) {
-// Use setTimeout to ensure the app is fully loaded first
-setTimeout(() => {
-tryAutoBackup().then(success => {
-if (success) {
-console.log("Initial auto-backup completed");
-}
-});
-}, 2000);
-}
-// Add beforeunload event listener to prevent accidental closing during active session
-// This only handles scanner session - checklist module handles its own separately
-window.addEventListener('beforeunload', handleBeforeUnload);
-// Initialize the checklist module if the elements exist
-if (document.getElementById('startChecklistSessionBtn')) {
-initializeChecklistModule();
-}
-});
-// Add this to capture app closing/pausing
-window.addEventListener('pagehide', function() {
-  if (!navigator.onLine && isBackupNeeded()) {
-    markPendingBackup();
-  }
-});
-
-// Additionally, on iOS you can use visibilitychange to detect when the app goes to background
-document.addEventListener('visibilitychange', function() {
-  if (document.visibilityState === 'hidden' && !navigator.onLine && isBackupNeeded()) {
-    markPendingBackup();
-  }
+    preloadSuccessSound();
+    console.log("DOM fully loaded");
+    loadSessionsFromStorage();
+    checkForRecoverableSession();
+    updateHistoryView();
+    // Initialize backup tab
+    updateConnectionStatus();
+    loadGitHubToken();
+    updateLastBackupTimeDisplay();
+    // Setup manual entry functionality
+    setupManualEntryButton();
+    // Setup button event listeners
+    setupButtonEventListeners();
+    // Enable auto-backup by default
+    if (localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) === null) {
+        localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, 'true');
+    }
+    
+    // NEW: Setup background sync support
+    setupServiceWorkerMessaging();
+    enhancedOnlineDetection();
+    setupIOSFocusEvents();
+    setupAppLifecycleEvents();
+    checkForPendingBackups(); // Check for pending backups on startup
+    
+    // Setup online/offline event listeners
+    window.addEventListener('online', () => {
+        updateConnectionStatus();
+        // Try auto-backup when connection is restored
+        tryAutoBackup();
+    });
+    window.addEventListener('offline', updateConnectionStatus);
+    
+    // Check if jsQR is already defined (from the script tag in HTML)
+    if (typeof jsQR === 'function') {
+        console.log("jsQR is already loaded from local file");
+        jsQRLoaded = true;
+    } else {
+        console.log("jsQR not detected, will attempt to load");
+        loadJsQR()
+        .then(() => console.log("jsQR library loaded and ready"))
+        .catch(error => {
+            console.error("Error loading jsQR:", error);
+            alert("Failed to load QR code scanning library. Please check your files and try again.");
+        });
+    }
+    // Load last backup session count
+    lastBackupSessions = parseInt(localStorage.getItem(LAST_BACKUP_SESSIONS_KEY) || '0');
+    // Try auto-backup if online and there are new sessions
+    if (navigator.onLine) {
+        // Use setTimeout to ensure the app is fully loaded first
+        setTimeout(() => {
+            tryAutoBackup().then(success => {
+                if (success) {
+                    console.log("Initial auto-backup completed");
+                }
+            });
+        }, 2000);
+    }
+    // Add beforeunload event listener to prevent accidental closing during active session
+    // This only handles scanner session - checklist module handles its own separately
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    // Initialize the checklist module if the elements exist
+    if (document.getElementById('startChecklistSessionBtn')) {
+        initializeChecklistModule();
+    }
 });
 //================================================================================================================================
 // Load jsQR from local file
@@ -3847,31 +3947,13 @@ startAutoSave();
 }
 // Save completed sessions to local storage
 function saveSessionsToStorage() {
-    try {
-        localStorage.setItem(COMPLETED_SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
-        console.log("Completed sessions saved:", sessions.length);
-        
-        // Update background sync cache whenever sessions are saved
-        updateBackgroundSyncCache()
-            .then(() => {
-                // If we're online, register for background sync
-                if (navigator.onLine) {
-                    return registerBackgroundSync();
-                }
-                return false;
-            })
-            .then(success => {
-                if (success) {
-                    console.log('Background sync registered after session save');
-                }
-            })
-            .catch(error => {
-                console.error('Error in background sync after saving:', error);
-            });
-    } catch (error) {
-        console.error("Error saving completed sessions:", error);
-        alert("Failed to save sessions. Your device might be low on storage space.");
-    }
+try {
+localStorage.setItem(COMPLETED_SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
+console.log("Completed sessions saved:", sessions.length);
+} catch (error) {
+console.error("Error saving completed sessions:", error);
+alert("Failed to save sessions. Your device might be low on storage space.");
+}
 }
 // Load sessions from local storage
 function loadSessionsFromStorage() {
