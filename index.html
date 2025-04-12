@@ -1161,6 +1161,198 @@ let batchModeActive = true; // Always enabled as requested
 let batchBuffer = new Set(); // Store unique QR codes during batch scanning
 let processingBatch = false; // Flag to prevent concurrent batch processing
 let batchProcessingInterval = null; // Interval for batch processing
+// ========================================================================================================== NOTIFICATIONS ========//
+
+// Create and add notification container to the document
+function createNotificationContainer() {
+  // Check if container already exists
+  if (document.getElementById('notification-container')) return;
+  
+  // Create container
+  const container = document.createElement('div');
+  container.id = 'notification-container';
+  container.className = 'notification-container';
+  document.body.appendChild(container);
+  
+  // Add styles for notifications
+  const style = document.createElement('style');
+  style.textContent = `
+    .notification-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+    }
+    
+    .notification {
+      margin-top: 10px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      background-color: #ffffff;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      width: 90%;
+      max-width: 500px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      animation: slideDown 0.3s ease-out;
+      pointer-events: auto;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    
+    .notification.closing {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    
+    .notification-info {
+      background-color: #e3f2fd;
+      border-left: 4px solid #2196f3;
+    }
+    
+    .notification-warning {
+      background-color: #fff8e1;
+      border-left: 4px solid #ff9800;
+    }
+    
+    .notification-content {
+      flex-grow: 1;
+      color: #333;
+    }
+    
+    .notification-message {
+      font-size: 14px;
+    }
+    
+    .notification-close {
+      background: transparent;
+      border: none;
+      color: #666;
+      cursor: pointer;
+      font-size: 20px;
+      margin-left: 8px;
+      padding: 0;
+      height: 24px;
+      width: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .notification-close:hover {
+      color: #333;
+    }
+    
+    @keyframes slideDown {
+      from {
+        transform: translateY(-20px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+// Show a notification
+function showNotification(message, type = 'info') {
+  // Create container if it doesn't exist
+  createNotificationContainer();
+  
+  const container = document.getElementById('notification-container');
+  
+  // Create notification element
+  const notification = document.createElement('div');
+  notification.className = `notification notification-${type}`;
+  
+  // Add content
+  const content = document.createElement('div');
+  content.className = 'notification-content';
+  
+  const messageElement = document.createElement('div');
+  messageElement.className = 'notification-message';
+  messageElement.textContent = message;
+  content.appendChild(messageElement);
+  
+  // Add close button
+  const closeButton = document.createElement('button');
+  closeButton.className = 'notification-close';
+  closeButton.innerHTML = '&times;';
+  closeButton.title = 'Dismiss';
+  
+  // Add elements to notification
+  notification.appendChild(content);
+  notification.appendChild(closeButton);
+  
+  // Add notification to container
+  container.appendChild(notification);
+  
+  // Set up close functionality
+  closeButton.addEventListener('click', () => {
+    notification.classList.add('closing');
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 300);
+  });
+  
+  // Auto close after 15 seconds
+  setTimeout(() => {
+    if (notification.parentNode) {
+      notification.classList.add('closing');
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.parentNode.removeChild(notification);
+        }
+      }, 300);
+    }
+  }, 15000);
+  
+  return notification;
+}
+
+// Show connectivity notification based on online status
+function showConnectivityNotification() {
+  if (navigator.onLine) {
+    showNotification("You are connected to the internet. Backups will occur automatically.", "info");
+  } else {
+    showNotification("You are offline. Don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.", "warning");
+  }
+}
+
+// Function to initialize connectivity notifications
+function initializeConnectivityNotifications() {
+  // Show notification on initial load
+  showConnectivityNotification();
+  
+  // Add event listeners for online/offline events
+  window.addEventListener('online', () => {
+    showNotification("You are connected to the internet. Backups will occur automatically.", "info");
+  });
+  
+  window.addEventListener('offline', () => {
+    showNotification("You are offline. Don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.", "warning");
+  });
+  
+  // Add event listener for when the app regains focus (for mobile)
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      showConnectivityNotification();
+    }
+  });
+  
+  console.log("Connectivity notifications initialized");
+}
+
 //========================================================================================================== GITHUB BACKUP FUNCTIONS ========//
 // Check internet connection status
 function updateConnectionStatus() {
@@ -1730,6 +1922,8 @@ updateLastBackupTimeDisplay();
 setupManualEntryButton();
 // Setup button event listeners
 setupButtonEventListeners();
+  // Initialize connectivity notifications
+  initializeConnectivityNotifications();
 // Enable auto-backup by default
 if (localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) === null) {
 localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, 'true');
