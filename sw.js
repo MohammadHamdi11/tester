@@ -13,7 +13,6 @@ const urlsToCache = [
   './web-app-manifest-512x512.png',
   './apple-touch-icon.png',
   './offline.html',
-  './Barcode-scanner-beep-sound.mp3',  // Add sound file to cache
   'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
 ];
@@ -99,50 +98,25 @@ self.addEventListener('fetch', event => {
   );
 });
 
-// Track network status
-let isOnline = self.navigator.onLine;
-
-// Function to notify all clients about connectivity changes
-function notifyClientsAboutConnectivity(online) {
-  self.clients.matchAll().then(clients => {
-    clients.forEach(client => {
-      client.postMessage({
-        type: 'CONNECTIVITY_CHANGE',
-        online: online
-      });
-    });
-  });
-}
-
-// Listen for online event
-self.addEventListener('online', () => {
-  console.log('Service worker detected online status');
-  isOnline = true;
-  notifyClientsAboutConnectivity(true);
-});
-
-// Listen for offline event
-self.addEventListener('offline', () => {
-  console.log('Service worker detected offline status');
-  isOnline = false;
-  notifyClientsAboutConnectivity(false);
-});
-
-// Listen for messages from clients
-self.addEventListener('message', event => {
-  if (event.data && event.data.type === 'CHECK_CONNECTIVITY') {
-    console.log('Service worker received connectivity check request');
-    event.source.postMessage({
-      type: 'CONNECTIVITY_CHANGE',
-      online: self.navigator.onLine
-    });
-  }
-});
-
 // Handle background sync for offline data submission
 self.addEventListener('sync', event => {
   if (event.tag === 'sync-scans') {
     event.waitUntil(syncScanData());
+  }
+});
+
+// Post message to client when online status changes
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'CHECK_CONNECTIVITY') {
+    const clients = self.clients.matchAll();
+    clients.then(clientList => {
+      clientList.forEach(client => {
+        client.postMessage({
+          type: 'CONNECTIVITY_STATUS',
+          online: self.navigator.onLine
+        });
+      });
+    });
   }
 });
 

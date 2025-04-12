@@ -1715,14 +1715,9 @@ console.log(`Token format check:
 return true;
 }
 //========================================================================================================== NOTIFICATION SYSTEM ========//
-// Create notification container and styling
-function initializeNotificationSystem() {
-  // Create and append the notification container
-  const notificationContainer = document.createElement('div');
-  notificationContainer.className = 'notification-container';
-  document.body.appendChild(notificationContainer);
-
-  // Add the styles to the document
+// Create notification container and styles when DOM is loaded
+function setupNotificationSystem() {
+  // Add notification styles
   const style = document.createElement('style');
   style.textContent = `
     .notification-container {
@@ -1823,80 +1818,118 @@ function initializeNotificationSystem() {
     }
   `;
   document.head.appendChild(style);
+
+  // Create notification container
+  const container = document.createElement('div');
+  container.className = 'notification-container';
+  container.id = 'notificationContainer';
+  document.body.appendChild(container);
 }
 
-// Show notification function
-function showConnectivityNotification() {
-  const container = document.querySelector('.notification-container');
+// Create a notification
+function showNotification(message, type = 'info', duration = 5000) {
+  const container = document.getElementById('notificationContainer');
   if (!container) return;
-  
-  // Clear any existing connectivity notifications first
-  const existingNotifications = document.querySelectorAll('.connectivity-notification');
-  existingNotifications.forEach(notification => {
-    notification.remove();
-  });
 
   // Create notification element
   const notification = document.createElement('div');
-  notification.className = 'notification connectivity-notification';
+  notification.className = `notification notification-${type}`;
   
-  // Set notification type based on online status
-  if (navigator.onLine) {
-    notification.classList.add('notification-success');
-    notification.innerHTML = `
-      <div class="notification-content">
-        <div class="notification-title">Connected</div>
-        <div class="notification-message">You are connected to the internet. Backups will occur automatically.</div>
-      </div>
-      <button class="notification-close">&times;</button>
-    `;
-  } else {
-    notification.classList.add('notification-warning');
-    notification.innerHTML = `
-      <div class="notification-content">
-        <div class="notification-title">Offline</div>
-        <div class="notification-message">You are offline, don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.</div>
-      </div>
-      <button class="notification-close">&times;</button>
-    `;
+  // Create content
+  const content = document.createElement('div');
+  content.className = 'notification-content';
+  
+  // Set appropriate title based on type
+  const title = document.createElement('div');
+  title.className = 'notification-title';
+  switch(type) {
+    case 'success':
+      title.textContent = 'Success';
+      break;
+    case 'warning':
+      title.textContent = 'Warning';
+      break;
+    case 'error':
+      title.textContent = 'Alert';
+      break;
+    default:
+      title.textContent = 'Information';
   }
   
-  // Add close button functionality
-  const closeButton = notification.querySelector('.notification-close');
-  closeButton.addEventListener('click', () => {
+  // Set message
+  const messageEl = document.createElement('div');
+  messageEl.className = 'notification-message';
+  messageEl.textContent = message;
+  
+  // Add close button
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'notification-close';
+  closeBtn.innerHTML = '&times;';
+  closeBtn.setAttribute('aria-label', 'Close notification');
+  
+  // Assemble notification
+  content.appendChild(title);
+  content.appendChild(messageEl);
+  notification.appendChild(content);
+  notification.appendChild(closeBtn);
+  container.appendChild(notification);
+  
+  // Set up close functionality
+  const close = () => {
     notification.classList.add('closing');
     setTimeout(() => {
-      notification.remove();
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
     }, 300);
-  });
+  };
   
-  // Auto-dismiss after 10 seconds
-  setTimeout(() => {
-    if (notification.parentNode) {
-      notification.classList.add('closing');
-      setTimeout(() => {
-        if (notification.parentNode) {
-          notification.remove();
-        }
-      }, 300);
-    }
-  }, 10000);
+  closeBtn.addEventListener('click', close);
   
-  // Add to container
-  container.appendChild(notification);
+  // Auto-close after duration (if provided)
+  if (duration) {
+    setTimeout(close, duration);
+  }
+  
+  return notification;
+}
+
+// Show connectivity notification based on online status
+function showConnectivityNotification() {
+  if (navigator.onLine) {
+    showNotification("You are connected to the internet. Backups will occur automatically", "success", 5000);
+  } else {
+    showNotification("You are offline, don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss", "warning", 8000);
+  }
+}
+
+// Check and display connectivity notification
+function checkConnectivityAndNotify() {
+  // Only show notification if we haven't shown it already in this session
+  const hasShownNotification = sessionStorage.getItem('connectivityNotificationShown');
+  if (!hasShownNotification) {
+    showConnectivityNotification();
+    sessionStorage.setItem('connectivityNotificationShown', 'true');
+  }
+}
+
+// Reset notification flag when app visibility changes
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    // Remove the flag so notification will show again
+    sessionStorage.removeItem('connectivityNotificationShown');
+    // Show connectivity notification after a small delay
+    setTimeout(checkConnectivityAndNotify, 500);
+  }
 }
 //========================================================================================================== INITIALIZATION ========//
 // Check if jsQR is already loaded from the local file
 document.addEventListener('DOMContentLoaded', function() {
+  // Set up notification system first
+  setupNotificationSystem();
+  
   preloadSuccessSound();
   console.log("DOM fully loaded");
-  
-  // Initialize notification system
-  initializeNotificationSystem();
-  
-  // Show connectivity notification on app start
-  showConnectivityNotification();
-  
   loadSessionsFromStorage();
   checkForRecoverableSession();
   updateHistoryView();
@@ -1912,19 +1945,28 @@ document.addEventListener('DOMContentLoaded', function() {
   if (localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) === null) {
     localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, 'true');
   }
-  // Setup online/offline event listeners
+  
+  // Show connectivity notification on startup
+  checkConnectivityAndNotify();
+  
+  // Setup online/offline event listeners with notifications
   window.addEventListener('online', () => {
     updateConnectionStatus();
     // Show notification when connection is restored
-    showConnectivityNotification();
+    showNotification("You are connected to the internet. Backups will occur automatically", "success", 5000);
     // Try auto-backup when connection is restored
     tryAutoBackup();
   });
+  
   window.addEventListener('offline', () => {
     updateConnectionStatus();
     // Show notification when connection is lost
-    showConnectivityNotification();
+    showNotification("You are offline, don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss", "warning", 8000);
   });
+  
+  // Monitor visibility changes to show notifications when app is reopened
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  
   // Check if jsQR is already defined (from the script tag in HTML)
   if (typeof jsQR === 'function') {
     console.log("jsQR is already loaded from local file");
@@ -1938,8 +1980,10 @@ document.addEventListener('DOMContentLoaded', function() {
         alert("Failed to load QR code scanning library. Please check your files and try again.");
       });
   }
+  
   // Load last backup session count
   lastBackupSessions = parseInt(localStorage.getItem(LAST_BACKUP_SESSIONS_KEY) || '0');
+  
   // Try auto-backup if online and there are new sessions
   if (navigator.onLine) {
     // Use setTimeout to ensure the app is fully loaded first
@@ -1951,20 +1995,14 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     }, 2000);
   }
+  
   // Add beforeunload event listener to prevent accidental closing during active session
   // This only handles scanner session - checklist module handles its own separately
   window.addEventListener('beforeunload', handleBeforeUnload);
+  
   // Initialize the checklist module if the elements exist
   if (document.getElementById('startChecklistSessionBtn')) {
     initializeChecklistModule();
-  }
-});
-
-// Add visibility change detection for when the app returns from background
-document.addEventListener('visibilitychange', function() {
-  if (document.visibilityState === 'visible') {
-    // App is becoming visible again after being in background
-    showConnectivityNotification();
   }
 });
 //================================================================================================================================
@@ -2360,23 +2398,20 @@ console.log("Session ended successfully");
 }
 // Start session button handler
 function startSessionBtnHandler() {
-  // Show connectivity notification when starting a session
-  showConnectivityNotification();
-  
-  // Before showing the modal, verify if jsQR is loaded
-  if (!jsQRLoaded) {
-    loadJsQR()
-      .then(() => {
-        sessionModal.style.display = 'block';
-        locationInput.focus();
-      })
-      .catch(() => {
-        alert("Failed to load QR scanning library. Please check if jsQR.min.js is in the correct location and refresh the page.");
-      });
-  } else {
-    sessionModal.style.display = 'block';
-    locationInput.focus();
-  }
+// Before showing the modal, verify if jsQR is loaded
+if (!jsQRLoaded) {
+loadJsQR()
+.then(() => {
+sessionModal.style.display = 'block';
+locationInput.focus();
+})
+.catch(() => {
+alert("Failed to load QR scanning library. Please check if jsQR.min.js is in the correct location and refresh the page.");
+});
+} else {
+sessionModal.style.display = 'block';
+locationInput.focus();
+}
 }
 //========================================================================================================== CAMERA & SCANNER FUNCTIONS ========//
 // Improved camera initialization function
