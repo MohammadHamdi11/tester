@@ -1717,80 +1717,63 @@ return true;
 //========================================================================================================== INITIALIZATION ========//
 // Check if jsQR is already loaded from the local file
 document.addEventListener('DOMContentLoaded', function() {
-  // Initialize notification system
-  initializeNotificationSystem();
-  
-  // Show startup notification
-  setTimeout(() => {
-    showConnectionNotification();
-    showBackupReminderNotification();
-  }, 1000);
-  
-  // Set up visibility change listener to detect when app resumes
-  document.addEventListener('visibilitychange', handleVisibilityChange);
-  
-  preloadSuccessSound();
-  console.log("DOM fully loaded");
-  loadSessionsFromStorage();
-  checkForRecoverableSession();
-  updateHistoryView();
-  // Initialize backup tab
-  updateConnectionStatus();
-  loadGitHubToken();
-  updateLastBackupTimeDisplay();
-  // Setup manual entry functionality
-  setupManualEntryButton();
-  // Setup button event listeners
-  setupButtonEventListeners();
-  // Enable auto-backup by default
-  if (localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) === null) {
-    localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, 'true');
-  }
-  // Setup online/offline event listeners
-  window.addEventListener('online', () => {
-    updateConnectionStatus();
-    // Show notification when connection is restored
-    showConnectionNotification();
-    // Try auto-backup when connection is restored
-    tryAutoBackup();
-  });
-  window.addEventListener('offline', () => {
-    updateConnectionStatus();
-    showConnectionNotification();
-  });
-  // Check if jsQR is already defined (from the script tag in HTML)
-  if (typeof jsQR === 'function') {
-    console.log("jsQR is already loaded from local file");
-    jsQRLoaded = true;
-  } else {
-    console.log("jsQR not detected, will attempt to load");
-    loadJsQR()
-      .then(() => console.log("jsQR library loaded and ready"))
-      .catch(error => {
-        console.error("Error loading jsQR:", error);
-        alert("Failed to load QR code scanning library. Please check your files and try again.");
-      });
-  }
-  // Load last backup session count
-  lastBackupSessions = parseInt(localStorage.getItem(LAST_BACKUP_SESSIONS_KEY) || '0');
-  // Try auto-backup if online and there are new sessions
-  if (navigator.onLine) {
-    // Use setTimeout to ensure the app is fully loaded first
-    setTimeout(() => {
-      tryAutoBackup().then(success => {
-        if (success) {
-          console.log("Initial auto-backup completed");
-        }
-      });
-    }, 2000);
-  }
-  // Add beforeunload event listener to prevent accidental closing during active session
-  // This only handles scanner session - checklist module handles its own separately
-  window.addEventListener('beforeunload', handleBeforeUnload);
-  // Initialize the checklist module if the elements exist
-  if (document.getElementById('startChecklistSessionBtn')) {
-    initializeChecklistModule();
-  }
+preloadSuccessSound();
+console.log("DOM fully loaded");
+loadSessionsFromStorage();
+checkForRecoverableSession();
+updateHistoryView();
+// Initialize backup tab
+updateConnectionStatus();
+loadGitHubToken();
+updateLastBackupTimeDisplay();
+// Setup manual entry functionality
+setupManualEntryButton();
+// Setup button event listeners
+setupButtonEventListeners();
+// Enable auto-backup by default
+if (localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) === null) {
+localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, 'true');
+}
+// Setup online/offline event listeners
+window.addEventListener('online', () => {
+updateConnectionStatus();
+// Try auto-backup when connection is restored
+tryAutoBackup();
+});
+window.addEventListener('offline', updateConnectionStatus);
+// Check if jsQR is already defined (from the script tag in HTML)
+if (typeof jsQR === 'function') {
+console.log("jsQR is already loaded from local file");
+jsQRLoaded = true;
+} else {
+console.log("jsQR not detected, will attempt to load");
+loadJsQR()
+.then(() => console.log("jsQR library loaded and ready"))
+.catch(error => {
+console.error("Error loading jsQR:", error);
+alert("Failed to load QR code scanning library. Please check your files and try again.");
+});
+}
+// Load last backup session count
+lastBackupSessions = parseInt(localStorage.getItem(LAST_BACKUP_SESSIONS_KEY) || '0');
+// Try auto-backup if online and there are new sessions
+if (navigator.onLine) {
+// Use setTimeout to ensure the app is fully loaded first
+setTimeout(() => {
+tryAutoBackup().then(success => {
+if (success) {
+console.log("Initial auto-backup completed");
+}
+});
+}, 2000);
+}
+// Add beforeunload event listener to prevent accidental closing during active session
+// This only handles scanner session - checklist module handles its own separately
+window.addEventListener('beforeunload', handleBeforeUnload);
+// Initialize the checklist module if the elements exist
+if (document.getElementById('startChecklistSessionBtn')) {
+initializeChecklistModule();
+}
 });
 //================================================================================================================================
 // Load jsQR from local file
@@ -2118,74 +2101,70 @@ autoSaveInterval = null;
 }
 // End session handler
 function endSessionHandler() {
-  if (!activeSession) {
-    console.log("No active session to end");
-    return;
-  }
-  console.log("Ending session:", activeSession.id);
-  // Confirm if there are no scans
-  if (activeSession.scans.length === 0) {
-    if (!confirm("No scans detected in this session. Do you still want to end it?")) {
-      return;
-    }
-  }
-  // Use the renamed function to stop scanner and clean up camera
-  stopScanner();
-  stopAutoSave();
-  // Save the session before performing operations on it
-  const sessionToExport = { ...activeSession };
-  // Mark session as completed in the sessions array
-  const sessionIndex = sessions.findIndex(s => s.id === activeSession.id);
-  if (sessionIndex !== -1) {
-    sessions[sessionIndex].inProgress = false;
-    console.log("Session marked as completed:", activeSession.id);
-  } else {
-    console.warn("Could not find active session in sessions array");
-  }
-  // Save sessions to storage before clearing active session
-  saveSessionsToStorage();
-  // Clear active session storage since it's complete
-  localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
-  localStorage.removeItem(TEMP_SESSION_INDEX_KEY);
-  // Update UI - Reset all elements to pre-session state
-  sessionInfo.style.display = 'none';
-  // Explicitly hide the result table
-  resultTable.style.display = 'none';
-  // Clear result body and reset no scans message
-  resultBody.innerHTML = '';
-  noScansMessage.style.display = 'none';
-  // Show scanner placeholder
-  scannerPlaceholder.style.display = 'block';
-  // Hide manual entry button
-  const addManualEntryBtn = document.getElementById('addManualEntryBtn');
-  if (addManualEntryBtn) {
-    addManualEntryBtn.style.display = 'none';
-  }
-  // Clear active session BEFORE updating button states
-  activeSession = null;
-  // Update button states - specifically enable the start session button
-  if (startSessionBtn) {
-    startSessionBtn.disabled = false;
-    // Make sure we're using the right event handler
-    startSessionBtn.removeEventListener('click', endSessionHandler);
-    startSessionBtn.addEventListener('click', startSessionBtnHandler);
-  }
-  // Update all other button states
-  updateButtonStates();
-  // Update history view
-  updateHistoryView();
-  
-  // Show session ended notification
-  showSessionEndedNotification(sessionToExport);
-  
-  // Export the session to Excel after all UI updates - if there are scans
-  if (sessionToExport && sessionToExport.scans && sessionToExport.scans.length > 0) {
-    setTimeout(() => {
-      console.log("Exporting session to Excel");
-      exportSession(sessionToExport);
-    }, 500);
-  }
-  console.log("Session ended successfully");
+if (!activeSession) {
+console.log("No active session to end");
+return;
+}
+console.log("Ending session:", activeSession.id);
+// Confirm if there are no scans
+if (activeSession.scans.length === 0) {
+if (!confirm("No scans detected in this session. Do you still want to end it?")) {
+return;
+}
+}
+// Use the renamed function to stop scanner and clean up camera
+stopScanner();
+stopAutoSave();
+// Save the session before performing operations on it
+const sessionToExport = { ...activeSession };
+// Mark session as completed in the sessions array
+const sessionIndex = sessions.findIndex(s => s.id === activeSession.id);
+if (sessionIndex !== -1) {
+sessions[sessionIndex].inProgress = false;
+console.log("Session marked as completed:", activeSession.id);
+} else {
+console.warn("Could not find active session in sessions array");
+}
+// Save sessions to storage before clearing active session
+saveSessionsToStorage();
+// Clear active session storage since it's complete
+localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+localStorage.removeItem(TEMP_SESSION_INDEX_KEY);
+// Update UI - Reset all elements to pre-session state
+sessionInfo.style.display = 'none';
+// Explicitly hide the result table
+resultTable.style.display = 'none';
+// Clear result body and reset no scans message
+resultBody.innerHTML = '';
+noScansMessage.style.display = 'none';
+// Show scanner placeholder
+scannerPlaceholder.style.display = 'block';
+// Hide manual entry button
+const addManualEntryBtn = document.getElementById('addManualEntryBtn');
+if (addManualEntryBtn) {
+addManualEntryBtn.style.display = 'none';
+}
+// Clear active session BEFORE updating button states
+activeSession = null;
+// Update button states - specifically enable the start session button
+if (startSessionBtn) {
+startSessionBtn.disabled = false;
+// Make sure we're using the right event handler
+startSessionBtn.removeEventListener('click', endSessionHandler);
+startSessionBtn.addEventListener('click', startSessionBtnHandler);
+}
+// Update all other button states
+updateButtonStates();
+// Update history view
+updateHistoryView();
+// Export the session to Excel after all UI updates - if there are scans
+if (sessionToExport && sessionToExport.scans && sessionToExport.scans.length > 0) {
+setTimeout(() => {
+console.log("Exporting session to Excel");
+exportSession(sessionToExport);
+}, 500);
+}
+console.log("Session ended successfully");
 }
 // Start session button handler
 function startSessionBtnHandler() {
@@ -4069,269 +4048,6 @@ console.error("Error during auto backup:", e);
 console.error("Error writing Excel file:", error);
 alert("Failed to export sessions: " + error.message);
 }
-}
-//========================================================================================================== NOTIFICATION SYSTEM ========//
-// Elements for notification system
-const notificationContainer = document.createElement('div');
-notificationContainer.id = 'notification-container';
-notificationContainer.className = 'notification-container';
-document.body.appendChild(notificationContainer);
-
-// Track last online status
-let lastOnlineStatus = navigator.onLine;
-
-// Initialize the notification system
-function initializeNotificationSystem() {
-  // Add CSS styles for notifications
-  const style = document.createElement('style');
-  style.textContent = `
-    .notification-container {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      z-index: 1000;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      pointer-events: none;
-    }
-    
-    .notification {
-      margin-top: 10px;
-      padding: 12px 16px;
-      border-radius: 8px;
-      background-color: #ffffff;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      width: 90%;
-      max-width: 500px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      animation: slideDown 0.3s ease-out;
-      pointer-events: auto;
-      transition: opacity 0.3s ease, transform 0.3s ease;
-    }
-    
-    .notification.closing {
-      opacity: 0;
-      transform: translateY(-20px);
-    }
-    
-    .notification-info {
-      background-color: #e3f2fd;
-      border-left: 4px solid #2196f3;
-    }
-    
-    .notification-success {
-      background-color: #e8f5e9;
-      border-left: 4px solid #4caf50;
-    }
-    
-    .notification-warning {
-      background-color: #fff8e1;
-      border-left: 4px solid #ff9800;
-    }
-    
-    .notification-error {
-      background-color: #ffebee;
-      border-left: 4px solid #f44336;
-    }
-    
-    .notification-content {
-      flex-grow: 1;
-      color: #333;
-    }
-    
-    .notification-title {
-      font-weight: bold;
-      margin-bottom: 4px;
-    }
-    
-    .notification-message {
-      font-size: 14px;
-    }
-    
-    .notification-close {
-      background: transparent;
-      border: none;
-      color: #666;
-      cursor: pointer;
-      font-size: 20px;
-      margin-left: 8px;
-      padding: 0;
-      height: 24px;
-      width: 24px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    
-    .notification-close:hover {
-      color: #333;
-    }
-    
-    @keyframes slideDown {
-      from {
-        transform: translateY(-20px);
-        opacity: 0;
-      }
-      to {
-        transform: translateY(0);
-        opacity: 1;
-      }
-    }
-  `;
-  document.head.appendChild(style);
-  
-  console.log("Notification system initialized");
-}
-
-// Function to show a notification
-function showNotification(title, message, type = 'info', duration = 5000) {
-  // Create notification element
-  const notification = document.createElement('div');
-  notification.className = `notification notification-${type}`;
-  
-  // Create notification content
-  const content = document.createElement('div');
-  content.className = 'notification-content';
-  
-  // Add title if provided
-  if (title) {
-    const titleElement = document.createElement('div');
-    titleElement.className = 'notification-title';
-    titleElement.textContent = title;
-    content.appendChild(titleElement);
-  }
-  
-  // Add message
-  const messageElement = document.createElement('div');
-  messageElement.className = 'notification-message';
-  messageElement.textContent = message;
-  content.appendChild(messageElement);
-  
-  // Add close button
-  const closeButton = document.createElement('button');
-  closeButton.className = 'notification-close';
-  closeButton.innerHTML = '&times;';
-  closeButton.setAttribute('aria-label', 'Close notification');
-  
-  // Add elements to notification
-  notification.appendChild(content);
-  notification.appendChild(closeButton);
-  
-  // Add notification to container
-  notificationContainer.appendChild(notification);
-  
-  // Function to remove notification
-  const removeNotification = () => {
-    notification.classList.add('closing');
-    setTimeout(() => {
-      if (notification.parentNode) {
-        notification.parentNode.removeChild(notification);
-      }
-    }, 300); // Match the transition duration
-  };
-  
-  // Set up close button event
-  closeButton.addEventListener('click', removeNotification);
-  
-  // Auto-remove after duration (if specified)
-  if (duration > 0) {
-    setTimeout(removeNotification, duration);
-  }
-  
-  // Return the notification element (in case it needs to be referenced)
-  return notification;
-}
-
-// Function to show connection status notification
-function showConnectionNotification() {
-  const isOnline = navigator.onLine;
-  
-  if (isOnline) {
-    showNotification(
-      'Connection Restored',
-      'Internet connection is available. Your data will be backed up automatically.',
-      'success',
-      8000
-    );
-  } else {
-    showNotification(
-      'No Internet Connection',
-      'You are currently offline. Data will be backed up when connection is restored.',
-      'warning',
-      8000
-    );
-  }
-}
-
-// Function to show backup reminder notification
-function showBackupReminderNotification() {
-  const lastBackupTime = localStorage.getItem(LAST_BACKUP_TIME_KEY);
-  const isOnline = navigator.onLine;
-  
-  if (!isOnline) {
-    showNotification(
-      'Backup Pending',
-      'Don't forget to ensure your data is backed up when you have a good internet connection to prevent data loss.',
-      'warning',
-      10000
-    );
-  } else if (!lastBackupTime) {
-    showNotification(
-      'Backup Recommended',
-      'No previous backup found. Please consider backing up your data.',
-      'warning',
-      10000
-    );
-  } else {
-    const lastBackup = new Date(parseInt(lastBackupTime));
-    const now = new Date();
-    const hoursSinceBackup = (now - lastBackup) / (1000 * 60 * 60);
-    
-    if (hoursSinceBackup > 24) {
-      showNotification(
-        'Backup Recommended',
-        `Last backup was ${Math.floor(hoursSinceBackup)} hours ago. Consider backing up your data.`,
-        'warning',
-        10000
-      );
-    }
-  }
-}
-
-// Function to show session ended notification
-function showSessionEndedNotification(sessionData) {
-  if (!sessionData) return;
-  
-  const scanCount = sessionData.scans ? sessionData.scans.length : 0;
-  let message = `Session at ${sessionData.location} ended with ${scanCount} scans.`;
-  
-  if (!navigator.onLine) {
-    message += ' Don't forget to ensure your data is backed up when you have a good internet connection to prevent data loss.';
-  }
-  
-  showNotification(
-    'Session Completed',
-    message,
-    'success',
-    8000
-  );
-}
-
-// Function to handle visibility change (app resume)
-function handleVisibilityChange() {
-  if (!document.hidden) {
-    // App has become visible (resumed)
-    console.log("App resumed - checking connectivity");
-    // Only show if online status changed while app was hidden
-    if (navigator.onLine !== lastOnlineStatus) {
-      showConnectionNotification();
-    }
-    lastOnlineStatus = navigator.onLine;
-  }
 }
 //========================================================================================================== HELPER FUNCTIONS ========//
 // Add sound effect when QR code is successfully scanned
