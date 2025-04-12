@@ -4228,7 +4228,7 @@ showNotification(
 } else {
 showNotification(
 'No Internet Connection',
-'You are currently offline. Data will be backed up when connection is restored.',
+'You are currently offline. We recommend you open the app once internet connection is available to allow your data to be backed up. `,
 'warning',
 8000
 );
@@ -4241,25 +4241,7 @@ const isOnline = navigator.onLine;
 if (!isOnline) {
 showNotification(
 'Backup Pending',
-'Please, remember to check your last backup time to ensure your data is being successfully backed up periodically.',
-'warning',
-10000
-);
-} else if (!lastBackupTime) {
-showNotification(
-'Backup Recommended',
-`We recommend you open the app once internet connection is available to allow your data to be backed up. `,
-'warning',
-10000
-);
-} else {
-const lastBackup = new Date(parseInt(lastBackupTime));
-const now = new Date();
-const hoursSinceBackup = (now - lastBackup) / (1000 * 60 * 60);
-if (hoursSinceBackup > 24) {
-showNotification(
-'Backup Recommended',
-`We recommend you open the app once internet connection is available to allow your data to be backed up. `,
+'Don't forget to ensure your data is backed up when you have a good internet connection to prevent data loss',
 'warning',
 10000
 );
@@ -4272,7 +4254,7 @@ if (!sessionData) return;
 const scanCount = sessionData.scans ? sessionData.scans.length : 0;
 let message = `Session at ${sessionData.location} ended with ${scanCount} scans.`;
 if (!navigator.onLine) {
-message += ' Data will be backed up when connection is restored. Consider reopening the application once connected.';
+message += 'Don't forget to ensure your data is backed up when you have a good internet connection to prevent data loss';
 }
 showNotification(
 'Session Completed',
@@ -4304,7 +4286,7 @@ const lastBackupTime = localStorage.getItem(LAST_BACKUP_TIME_KEY);
 if (!lastBackupTime) {
 showNotification(
 'Backup Recommended',
-'You are currently offline. Data will be backed up when connection is restored. Please reopen the application after connecting.',
+'Don't forget to ensure your data is backed up when you have a good internet connection to prevent data loss`,
 'warning',
 10000
 );
@@ -4315,7 +4297,7 @@ const hoursSinceBackup = (now - lastBackup) / (1000 * 60 * 60);
 if (hoursSinceBackup > 12) {
 showNotification(
 'Backup Reminder',
-'You are currently offline. Data will be backed up when connection is restored. Please reopen the application after connecting.',
+'Don't forget to ensure your data is backed up when you have a good internet connection to prevent data loss`,
 'warning',
 10000
 );
