@@ -105,21 +105,6 @@ self.addEventListener('sync', event => {
   }
 });
 
-// Post message to client when online status changes
-self.addEventListener('message', event => {
-  if (event.data && event.data.type === 'CHECK_CONNECTIVITY') {
-    const clients = self.clients.matchAll();
-    clients.then(clientList => {
-      clientList.forEach(client => {
-        client.postMessage({
-          type: 'CONNECTIVITY_STATUS',
-          online: self.navigator.onLine
-        });
-      });
-    });
-  }
-});
-
 // Placeholder function for background sync
 function syncScanData() {
   return new Promise((resolve, reject) => {
