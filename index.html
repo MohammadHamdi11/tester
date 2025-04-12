@@ -1162,7 +1162,6 @@ let batchBuffer = new Set(); // Store unique QR codes during batch scanning
 let processingBatch = false; // Flag to prevent concurrent batch processing
 let batchProcessingInterval = null; // Interval for batch processing
 // ========================================================================================================== NOTIFICATIONS ========//
-
 // Create and add notification container to the document
 function createNotificationContainer() {
   // Check if container already exists
@@ -1329,30 +1328,79 @@ function showConnectivityNotification() {
   }
 }
 
+// Function to setup service worker messaging
+function setupServiceWorkerMessaging() {
+  if (!navigator.serviceWorker) {
+    console.log("Service worker not supported");
+    return;
+  }
+  
+  // Handle messages from service worker
+  navigator.serviceWorker.addEventListener('message', event => {
+    if (event.data && event.data.type === 'CONNECTIVITY_CHANGE') {
+      console.log('Received connectivity message from service worker:', event.data);
+      if (event.data.online) {
+        showNotification("You are connected to the internet. Backups will occur automatically.", "info");
+      } else {
+        showNotification("You are offline. Don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.", "warning");
+      }
+    }
+  });
+  
+  // Check if service worker is already controlling the page
+  if (navigator.serviceWorker.controller) {
+    console.log('Sending initial connectivity check to service worker');
+    navigator.serviceWorker.controller.postMessage({
+      type: 'CHECK_CONNECTIVITY'
+    });
+  } else {
+    console.log('No controlling service worker yet');
+    // We'll wait for the controllerchange event
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      console.log('Service worker now controlling the page, sending connectivity check');
+      navigator.serviceWorker.controller.postMessage({
+        type: 'CHECK_CONNECTIVITY'
+      });
+    });
+  }
+}
+
 // Function to initialize connectivity notifications
 function initializeConnectivityNotifications() {
-  // Show notification on initial load
+  // Show initial notification based on browser's online status
   showConnectivityNotification();
+  
+  // Setup service worker messaging
+  setupServiceWorkerMessaging();
   
   // Add event listeners for online/offline events
   window.addEventListener('online', () => {
+    console.log('Browser online event triggered');
     showNotification("You are connected to the internet. Backups will occur automatically.", "info");
   });
   
   window.addEventListener('offline', () => {
+    console.log('Browser offline event triggered');
     showNotification("You are offline. Don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.", "warning");
   });
   
   // Add event listener for when the app regains focus (for mobile)
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
+      console.log('App became visible again, checking connectivity');
       showConnectivityNotification();
+      
+      // Also check with service worker for connectivity
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'CHECK_CONNECTIVITY'
+        });
+      }
     }
   });
   
   console.log("Connectivity notifications initialized");
 }
-
 //========================================================================================================== GITHUB BACKUP FUNCTIONS ========//
 // Check internet connection status
 function updateConnectionStatus() {
@@ -1922,8 +1970,8 @@ updateLastBackupTimeDisplay();
 setupManualEntryButton();
 // Setup button event listeners
 setupButtonEventListeners();
-  // Initialize connectivity notifications
-  initializeConnectivityNotifications();
+// Initialize connectivity notifications
+initializeConnectivityNotifications();
 // Enable auto-backup by default
 if (localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) === null) {
 localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, 'true');
