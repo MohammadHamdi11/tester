@@ -2,22 +2,20 @@
 const CACHE_NAME = 'qr-scanner-cache-v2';
 const APP_PREFIX = 'qr-scanner-';
 const urlsToCache = [
-'./',
-'./index.html',
-'./sw.js',
-'./manifest.json',
-'./jsQR.min.js',
-'./usercredentials.json',
-'./students_ids.xlsx',
-'./Barcode-scanner-beep-sound.mp3',
-'./favicon-96x96.png',
-'./web-app-manifest-192x192.png',
-'./web-app-manifest-512x512.png',
-'./apple-touch-icon.png',
-'./offline.html',
-'https://unpkg.com/@zxing/library@latest'
-'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js',
-'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
+  './',
+  './index.html',
+  './sw.js',
+  './manifest.json',
+  './zxing.min.js', // Changed from jsQR.min.js to zxing.min.js
+  './usercredentials.json',
+  './students_ids.xlsx',
+  './Barcode-scanner-beep-sound.mp3',
+  './favicon-96x96.png',
+  './web-app-manifest-192x192.png',
+  './web-app-manifest-512x512.png',
+  './apple-touch-icon.png',
+  './offline.html',
+  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
 ];
 // Install event - cache assets
 self.addEventListener('install', event => {
