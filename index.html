@@ -1776,41 +1776,37 @@ initializeChecklistModule();
 //================================================================================================================================
 // Load ZXing from local file
 function loadZXing() {
-    return new Promise((resolve, reject) => {
-        // Check if ZXing is already loaded
-        if (typeof ZXing !== 'undefined') {
-            console.log("ZXing is already loaded");
-            resolve(true);
-            return;
-        }
-        
-        // Create a new script element to load the local file
-        const script = document.createElement('script');
-        script.src = 'zxing.min.js'; // Local file path
-        
-        // Set event handlers
-        script.onload = () => {
-            console.log("ZXing loaded successfully from local file");
-            // Add a small delay to ensure the library is initialized
-            setTimeout(() => {
-                if (typeof ZXing !== 'undefined') {
-                    console.log("ZXing verified as loaded and ready");
-                    resolve(true);
-                } else {
-                    console.error("ZXing failed to initialize properly");
-                    reject(new Error("ZXing failed to initialize"));
-                }
-            }, 500);
-        };
-        
-        script.onerror = (error) => {
-            console.error("Failed to load local ZXing:", error);
-            reject(error);
-        };
-        
-        // Add the script to the document
-        document.head.appendChild(script);
-    });
+return new Promise((resolve, reject) => {
+// Check if ZXing is already loaded
+if (typeof ZXing !== 'undefined') {
+console.log("ZXing is already loaded");
+resolve(true);
+return;
+}
+// Create a new script element to load the local file
+const script = document.createElement('script');
+script.src = 'zxing.min.js'; // Local file path
+// Set event handlers
+script.onload = () => {
+console.log("ZXing loaded successfully from local file");
+// Add a small delay to ensure the library is initialized
+setTimeout(() => {
+if (typeof ZXing !== 'undefined') {
+console.log("ZXing verified as loaded and ready");
+resolve(true);
+} else {
+console.error("ZXing failed to initialize properly");
+reject(new Error("ZXing failed to initialize"));
+}
+}, 500);
+};
+script.onerror = (error) => {
+console.error("Failed to load local ZXing:", error);
+reject(error);
+};
+// Add the script to the document
+document.head.appendChild(script);
+});
 }
 //========================================================================================================== SERVICE WORKER REGISTRATION FOR PWA ========//
 if ('serviceWorker' in navigator) {
@@ -2453,72 +2449,63 @@ statusEl.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';  // Default color
 }
 // QR code scanning function - Alternative implementation
 function scanQRCode() {
-    if (!scanning) return;
-    
-    if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        try {
-            // Draw the video frame to the canvas
-            canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
-            
-            // Verify ZXing is available
-            if (typeof ZXing === 'undefined') {
-                console.error("ZXing is not available");
-                updateScanStatus('QR scanner not loaded correctly');
-                loadZXing().catch(err => console.error("Failed to reload ZXing:", err));
-                requestAnimationFrame(scanQRCode);
-                return;
-            }
-            
-            // Get image data
-            const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
-            const width = imageData.width;
-            const height = imageData.height;
-            
-            // Create a Uint8Array for ZXing
-            const data = new Uint8ClampedArray(width * height);
-            
-            // Convert RGBA to grayscale for better QR detection
-            for (let i = 0; i < height; i++) {
-                for (let j = 0; j < width; j++) {
-                    const idx = (i * width + j) * 4;
-                    const r = imageData.data[idx + 0];
-                    const g = imageData.data[idx + 1];
-                    const b = imageData.data[idx + 2];
-                    // Convert to grayscale using standard luminance formula
-                    data[i * width + j] = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
-                }
-            }
-            
-            try {
-                // Use ZXing to decode QR code
-                const source = new ZXing.RGBLuminanceSource(data, width, height);
-                const binarizer = new ZXing.HybridBinarizer(source);
-                const bitmap = new ZXing.BinaryBitmap(binarizer);
-                
-                const reader = new ZXing.QRCodeReader();
-                const result = reader.decode(bitmap);
-                
-                if (result) {
-                    handleQRCode({
-                        data: result.getText(),
-                        location: result.getResultPoints()
-                    });
-                    highlightQR(result.getResultPoints());
-                }
-            } catch (notFoundError) {
-                // No QR code found - this is normal, continue scanning
-                updateScanStatus('Scanning... Position QR code in the frame');
-            }
-        } catch (error) {
-            console.error("Error in scan process:", error);
-            updateScanStatus('Error in scan process: ' + error.message);
-        }
-    } else {
-        updateScanStatus('Waiting for camera...');
-    }
-    
-    // Continue scanning
-    requestAnimationFrame(scanQRCode);
+if (!scanning) return;
+if (video.readyState === video.HAVE_ENOUGH_DATA) {
+try {
+// Draw the video frame to the canvas
+canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+// Verify ZXing is available
+if (typeof ZXing === 'undefined') {
+console.error("ZXing is not available");
+updateScanStatus('QR scanner not loaded correctly');
+loadZXing().catch(err => console.error("Failed to reload ZXing:", err));
+requestAnimationFrame(scanQRCode);
+return;
+}
+// Get image data
+const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+const width = imageData.width;
+const height = imageData.height;
+// Create a Uint8Array for ZXing
+const data = new Uint8ClampedArray(width * height);
+// Convert RGBA to grayscale for better QR detection
+for (let i = 0; i < height; i++) {
+for (let j = 0; j < width; j++) {
+const idx = (i * width + j) * 4;
+const r = imageData.data[idx + 0];
+const g = imageData.data[idx + 1];
+const b = imageData.data[idx + 2];
+// Convert to grayscale using standard luminance formula
+data[i * width + j] = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+}
+}
+try {
+// Use ZXing to decode QR code
+const source = new ZXing.RGBLuminanceSource(data, width, height);
+const binarizer = new ZXing.HybridBinarizer(source);
+const bitmap = new ZXing.BinaryBitmap(binarizer);
+const reader = new ZXing.QRCodeReader();
+const result = reader.decode(bitmap);
+if (result) {
+handleQRCode({
+data: result.getText(),
+location: result.getResultPoints()
+});
+highlightQR(result.getResultPoints());
+}
+} catch (notFoundError) {
+// No QR code found - this is normal, continue scanning
+updateScanStatus('Scanning... Position QR code in the frame');
+}
+} catch (error) {
+console.error("Error in scan process:", error);
+updateScanStatus('Error in scan process: ' + error.message);
+}
+} else {
+updateScanStatus('Waiting for camera...');
+}
+// Continue scanning
+requestAnimationFrame(scanQRCode);
 }
 // Helper function to handle detected QR codes
 function handleQRCode(code) {

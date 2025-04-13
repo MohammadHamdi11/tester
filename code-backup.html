@@ -1012,7 +1012,7 @@ max-height: 250px;
 </div>
 </div>
 <!-- Script for QR Code Scanning -->
-<script src="https://unpkg.com/@zxing/library@latest"></script>
+<script src="zxing.min.js"></script>
 <!-- Script for Excel Export -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
@@ -1715,7 +1715,6 @@ console.log(`Token format check:
 return true;
 }
 //========================================================================================================== INITIALIZATION ========//
-// Check if jsQR is already loaded from the local file
 document.addEventListener('DOMContentLoaded', function() {
 preloadSuccessSound();
 console.log("DOM fully loaded");
@@ -1741,16 +1740,15 @@ updateConnectionStatus();
 tryAutoBackup();
 });
 window.addEventListener('offline', updateConnectionStatus);
-// Check if jsQR is already defined (from the script tag in HTML)
-if (typeof jsQR === 'function') {
-console.log("jsQR is already loaded from local file");
-jsQRLoaded = true;
+// Check if ZXing is already defined
+if (typeof ZXing !== 'undefined') {
+console.log("ZXing is already loaded from local file");
 } else {
-console.log("jsQR not detected, will attempt to load");
-loadJsQR()
-.then(() => console.log("jsQR library loaded and ready"))
+console.log("ZXing not detected, will attempt to load");
+loadZXing()
+.then(() => console.log("ZXing library loaded and ready"))
 .catch(error => {
-console.error("Error loading jsQR:", error);
+console.error("Error loading ZXing:", error);
 alert("Failed to load QR code scanning library. Please check your files and try again.");
 });
 }
@@ -1776,26 +1774,34 @@ initializeChecklistModule();
 }
 });
 //================================================================================================================================
-// Load jsQR from local file
-function loadJsQR() {
+// Load ZXing from local file
+function loadZXing() {
 return new Promise((resolve, reject) => {
-// Check if jsQR is already loaded
-if (typeof jsQR === 'function') {
-jsQRLoaded = true;
+// Check if ZXing is already loaded
+if (typeof ZXing !== 'undefined') {
+console.log("ZXing is already loaded");
 resolve(true);
 return;
 }
 // Create a new script element to load the local file
 const script = document.createElement('script');
-script.src = 'jsQR.min.js'; // Local file path
+script.src = 'zxing.min.js'; // Local file path
 // Set event handlers
 script.onload = () => {
-console.log("jsQR loaded successfully from local file");
-jsQRLoaded = true;
+console.log("ZXing loaded successfully from local file");
+// Add a small delay to ensure the library is initialized
+setTimeout(() => {
+if (typeof ZXing !== 'undefined') {
+console.log("ZXing verified as loaded and ready");
 resolve(true);
+} else {
+console.error("ZXing failed to initialize properly");
+reject(new Error("ZXing failed to initialize"));
+}
+}, 500);
 };
 script.onerror = (error) => {
-console.error("Failed to load local jsQR:", error);
+console.error("Failed to load local ZXing:", error);
 reject(error);
 };
 // Add the script to the document
@@ -2168,15 +2174,15 @@ console.log("Session ended successfully");
 }
 // Start session button handler
 function startSessionBtnHandler() {
-// Before showing the modal, verify if jsQR is loaded
-if (!jsQRLoaded) {
-loadJsQR()
+// Before showing the modal, verify if ZXing is loaded
+if (typeof ZXing === 'undefined') {
+loadZXing()
 .then(() => {
 sessionModal.style.display = 'block';
 locationInput.focus();
 })
 .catch(() => {
-alert("Failed to load QR scanning library. Please check if jsQR.min.js is in the correct location and refresh the page.");
+alert("Failed to load QR scanning library. Please check if zxing.min.js is in the correct location and refresh the page.");
 });
 } else {
 sessionModal.style.display = 'block';
@@ -2184,7 +2190,6 @@ locationInput.focus();
 }
 }
 //========================================================================================================== CAMERA & SCANNER FUNCTIONS ========//
-// Improved camera initialization function
 // Improved camera initialization function
 async function startCamera() {
 try {
@@ -2250,6 +2255,10 @@ video.play()
 console.log("Video playback started");
 scannerPlaceholder.style.display = 'none';
 video.style.display = 'block';
+// Ensure ZXing is loaded before starting scanning
+if (typeof ZXing === 'undefined') {
+loadZXing()
+.then(() => {
 // Start scanning
 scanning = true;
 requestAnimationFrame(scanQRCode);
@@ -2257,6 +2266,20 @@ requestAnimationFrame(scanQRCode);
 updateScanStatus('Camera active - looking for QR codes');
 // OPTIMIZATION: Add batch mode indicator
 addScanLogEntry('Continuous & batch scanning enabled', 'info');
+})
+.catch(error => {
+console.error("Failed to load ZXing:", error);
+updateScanStatus('Error: Failed to load ZXing library');
+});
+} else {
+// Start scanning
+scanning = true;
+requestAnimationFrame(scanQRCode);
+// Show scanning indicator
+updateScanStatus('Camera active - looking for QR codes');
+// OPTIMIZATION: Add batch mode indicator
+addScanLogEntry('Continuous & batch scanning enabled', 'info');
+}
 })
 .catch(error => {
 console.error("Video playback failed:", error);
@@ -2424,67 +2447,55 @@ statusEl.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';  // Default color
 }
 }
 }
-// QR code scanning function 
+// QR code scanning function - Alternative implementation
 function scanQRCode() {
 if (!scanning) return;
 if (video.readyState === video.HAVE_ENOUGH_DATA) {
 try {
 // Draw the video frame to the canvas
 canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
-// Get image data from the canvas
-const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
-// Check if we have valid image data
-if (imageData.data.length === 0 || imageData.width === 0 || imageData.height === 0) {
-console.error("Invalid image data");
-updateScanStatus('Error: Invalid image data');
-requestAnimationFrame(scanQRCode);
-return;
-}
-// Verify jsQR is available
-if (typeof jsQR !== 'function') {
-console.error("jsQR is not available. Current value:", jsQR);
+// Verify ZXing is available
+if (typeof ZXing === 'undefined') {
+console.error("ZXing is not available");
 updateScanStatus('QR scanner not loaded correctly');
-loadJsQR().catch(err => console.error("Failed to reload jsQR:", err));
+loadZXing().catch(err => console.error("Failed to reload ZXing:", err));
 requestAnimationFrame(scanQRCode);
 return;
 }
-// Process multiple QR codes at once (new feature)
+// Get image data
+const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+const width = imageData.width;
+const height = imageData.height;
+// Create a Uint8Array for ZXing
+const data = new Uint8ClampedArray(width * height);
+// Convert RGBA to grayscale for better QR detection
+for (let i = 0; i < height; i++) {
+for (let j = 0; j < width; j++) {
+const idx = (i * width + j) * 4;
+const r = imageData.data[idx + 0];
+const g = imageData.data[idx + 1];
+const b = imageData.data[idx + 2];
+// Convert to grayscale using standard luminance formula
+data[i * width + j] = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+}
+}
 try {
-// First try the standard method for single QR code
-const code = jsQR(imageData.data, imageData.width, imageData.height, {
-inversionAttempts: "dontInvert"
+// Use ZXing to decode QR code
+const source = new ZXing.RGBLuminanceSource(data, width, height);
+const binarizer = new ZXing.HybridBinarizer(source);
+const bitmap = new ZXing.BinaryBitmap(binarizer);
+const reader = new ZXing.QRCodeReader();
+const result = reader.decode(bitmap);
+if (result) {
+handleQRCode({
+data: result.getText(),
+location: result.getResultPoints()
 });
-if (code && code.data) {
-// Process the primary QR code
-handleQRCode(code);
-// OPTIMIZATION: Try to scan for additional QR codes in the same frame
-// This is a simplified approach - for true multi-code scanning, 
-// a more advanced library would be better
-const darkAreas = detectPotentialQRRegions(imageData);
-if (darkAreas.length > 0) {
-// Only process a reasonable number of regions to maintain performance
-const regionsToProcess = Math.min(darkAreas.length, 3);
-for (let i = 0; i < regionsToProcess; i++) {
-const region = darkAreas[i];
-// Skip the region that's likely the same as our already detected code
-if (isOverlapping(region, code.location)) continue;
-// Extract and process potential QR code
-const regionData = extractRegionData(imageData, region);
-const regionCode = jsQR(regionData.data, regionData.width, regionData.height, {
-inversionAttempts: "dontInvert"
-});
-if (regionCode && regionCode.data && regionCode.data !== code.data) {
-handleQRCode(regionCode);
+highlightQR(result.getResultPoints());
 }
-}
-}
-} else {
-// No QR code found in this frame
+} catch (notFoundError) {
+// No QR code found - this is normal, continue scanning
 updateScanStatus('Scanning... Position QR code in the frame');
-}
-} catch (qrError) {
-console.error("jsQR processing error:", qrError);
-updateScanStatus('QR processing error: ' + qrError.message);
 }
 } catch (error) {
 console.error("Error in scan process:", error);
@@ -2493,8 +2504,8 @@ updateScanStatus('Error in scan process: ' + error.message);
 } else {
 updateScanStatus('Waiting for camera...');
 }
-// Continue scanning - OPTIMIZATION: Use faster refresh rate for smoother scanning
-setTimeout(() => requestAnimationFrame(scanQRCode), 10);
+// Continue scanning
+requestAnimationFrame(scanQRCode);
 }
 // Helper function to handle detected QR codes
 function handleQRCode(code) {
@@ -2804,15 +2815,15 @@ activeSession = null;
 }
 // Handler for start session button
 function startSessionBtnHandler() {
-// Check if jsQR is loaded
-if (!jsQRLoaded) {
-loadJsQR()
+// Before showing the modal, verify if ZXing is loaded
+if (typeof ZXing === 'undefined') {
+loadZXing()
 .then(() => {
 sessionModal.style.display = 'block';
 locationInput.focus();
 })
 .catch(() => {
-alert("Failed to load QR scanning library. Please check if jsQR.min.js is in the correct location and refresh the page.");
+alert("Failed to load QR scanning library. Please check if zxing.min.js is in the correct location and refresh the page.");
 });
 } else {
 sessionModal.style.display = 'block';
