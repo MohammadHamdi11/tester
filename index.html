@@ -1773,6 +1773,10 @@ if (document.getElementById('startChecklistSessionBtn')) {
 initializeChecklistModule();
 }
 });
+// Initialize tracking variables for multi-QR code detection
+if (typeof lastStatusMessages === 'undefined') {
+    var lastStatusMessages = new Set();
+}
 //================================================================================================================================
 // Load ZXing from local file
 function loadZXing() {
@@ -2465,198 +2469,308 @@ bgColor = 'rgba(255, 165, 0, 0.8)';  // Orange
 statusEl.textContent = displayMessage;
 statusEl.style.backgroundColor = bgColor;
 }
-// QR code scanning function - Alternative implementation
+// QR code scanning function - Alternative implementation with improved multi-code detection
 function scanQRCode() {
-if (!scanning) return;
-// Only process frames when video is ready
-if (video.readyState === video.HAVE_ENOUGH_DATA) {
-try {
-// OPTIMIZATION: Only process every other frame to reduce CPU usage
-if (window.scanFrameCounter === undefined) {
-window.scanFrameCounter = 0;
-}
-window.scanFrameCounter++;
-if (window.scanFrameCounter % 2 !== 0) {
-requestAnimationFrame(scanQRCode);
-return;
-}
-// Draw the video frame to the canvas
-canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
-// Verify ZXing is available
-if (typeof ZXing === 'undefined') {
-updateScanStatus('ERROR');
-loadZXing().catch(err => console.error("Failed to reload ZXing:", err));
-requestAnimationFrame(scanQRCode);
-return;
-}
-// Get image data
-const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
-const width = imageData.width;
-const height = imageData.height;
-// Create a Uint8Array for ZXing
-const data = new Uint8ClampedArray(width * height);
-// OPTIMIZATION: Downsampling - only process every other pixel
-for (let i = 0; i < height; i += 2) {
-for (let j = 0; j < width; j += 2) {
-const idx = (i * width + j) * 4;
-// Fast grayscale calculation
-const gray = (imageData.data[idx] + imageData.data[idx + 1] + imageData.data[idx + 2]) / 3;
-data[(i/2) * (width/2) + (j/2)] = gray;
-}
-}
-try {
-// Use ZXing to decode QR code
-const source = new ZXing.RGBLuminanceSource(data, width/2, height/2);
-const binarizer = new ZXing.HybridBinarizer(source);
-const bitmap = new ZXing.BinaryBitmap(binarizer);
-const reader = new ZXing.MultiFormatReader(); // Use MultiFormatReader to detect multiple QR codes
-// Store detected QR codes
-const detectedCodes = [];
-try {
-// Try to find all QR codes in the image
-const results = reader.decodeMultiple(bitmap);
-if (results && results.length > 0) {
-results.forEach(result => {
-detectedCodes.push({
-data: result.getText(),
-location: result.getResultPoints()
-});
-});
-}
-} catch (multiError) {
-// If multiple detection fails, try single detection
-try {
-const qrReader = new ZXing.QRCodeReader();
-const result = qrReader.decode(bitmap);
-if (result) {
-detectedCodes.push({
-data: result.getText(),
-location: result.getResultPoints()
-});
-}
-} catch (singleError) {
-// No QR code found
-}
-}
-// Handle detected QR codes
-if (detectedCodes.length > 0) {
-// Draw green rectangles around all detected QR codes
-drawQRCodeHighlights(detectedCodes);
-// Process each detected QR code
-detectedCodes.forEach(code => {
-handleQRCode(code);
-});
-}
-if (detectedCodes.length === 0) {
-// No QR code found - this is normal, continue scanning
-updateScanStatus('SCANNING');
-}
-} catch (error) {
-console.error("Error in QR decoding:", error);
-updateScanStatus('ERROR');
-}
-} catch (error) {
-console.error("Error in scan process:", error);
-updateScanStatus('ERROR');
-}
-} else {
-updateScanStatus('WAITING');
-}
-// Continue scanning
-requestAnimationFrame(scanQRCode);
+    if (!scanning) return;
+    // Only process frames when video is ready
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        try {
+            // OPTIMIZATION: Only process every other frame to reduce CPU usage
+            if (window.scanFrameCounter === undefined) {
+                window.scanFrameCounter = 0;
+            }
+            window.scanFrameCounter++;
+            if (window.scanFrameCounter % 2 !== 0) {
+                requestAnimationFrame(scanQRCode);
+                return;
+            }
+            // Draw the video frame to the canvas
+            canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+            // Verify ZXing is available
+            if (typeof ZXing === 'undefined') {
+                updateScanStatus('ERROR');
+                loadZXing().catch(err => console.error("Failed to reload ZXing:", err));
+                requestAnimationFrame(scanQRCode);
+                return;
+            }
+            // Get image data
+            const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+            const width = imageData.width;
+            const height = imageData.height;
+            
+            // Try two different approaches for finding multiple QR codes
+            const detectedCodes = [];
+            
+            // APPROACH 1: Native MultiFormatReader method
+            try {
+                const source = new ZXing.RGBLuminanceSource(imageData.data, width, height);
+                const binarizer = new ZXing.HybridBinarizer(source);
+                const bitmap = new ZXing.BinaryBitmap(binarizer);
+                const reader = new ZXing.MultiFormatReader();
+                
+                try {
+                    // Try to decode multiple QR codes
+                    const results = reader.decodeMultiple(bitmap);
+                    if (results && results.length > 0) {
+                        results.forEach(result => {
+                            detectedCodes.push({
+                                data: result.getText(),
+                                location: result.getResultPoints()
+                            });
+                        });
+                    }
+                } catch (multiError) {
+                    // If multiple detection fails, try single detection
+                    try {
+                        const qrReader = new ZXing.QRCodeReader();
+                        const result = qrReader.decode(bitmap);
+                        if (result) {
+                            detectedCodes.push({
+                                data: result.getText(),
+                                location: result.getResultPoints()
+                            });
+                        }
+                    } catch (singleError) {
+                        // No QR code found with this method
+                    }
+                }
+            } catch (approachError) {
+                console.warn("First detection approach failed:", approachError);
+            }
+            
+            // APPROACH 2: If the first approach found nothing, try detection in different regions
+            if (detectedCodes.length === 0) {
+                try {
+                    // Split the image into a 2x2 grid and try detection in each section
+                    const gridSize = 2;
+                    const sectionWidth = Math.floor(width / gridSize);
+                    const sectionHeight = Math.floor(height / gridSize);
+                    
+                    for (let row = 0; row < gridSize; row++) {
+                        for (let col = 0; col < gridSize; col++) {
+                            const x = col * sectionWidth;
+                            const y = row * sectionHeight;
+                            
+                            // Create a temporary canvas for this section
+                            const sectionCanvas = document.createElement('canvas');
+                            const sectionCtx = sectionCanvas.getContext('2d');
+                            sectionCanvas.width = sectionWidth;
+                            sectionCanvas.height = sectionHeight;
+                            
+                            // Copy this section to the temporary canvas
+                            sectionCtx.drawImage(
+                                video, 
+                                x, y, sectionWidth, sectionHeight,
+                                0, 0, sectionWidth, sectionHeight
+                            );
+                            
+                            // Get image data from this section
+                            const sectionImageData = sectionCtx.getImageData(0, 0, sectionWidth, sectionHeight);
+                            
+                            try {
+                                // Try to detect QR codes in this section
+                                const source = new ZXing.RGBLuminanceSource(sectionImageData.data, sectionWidth, sectionHeight);
+                                const binarizer = new ZXing.HybridBinarizer(source);
+                                const bitmap = new ZXing.BinaryBitmap(binarizer);
+                                const reader = new ZXing.QRCodeReader();
+                                
+                                try {
+                                    const result = reader.decode(bitmap);
+                                    if (result) {
+                                        // Adjust coordinates to match the original image
+                                        const points = result.getResultPoints();
+                                        const adjustedPoints = points.map(point => {
+                                            return {
+                                                getX: () => point.getX() + x,
+                                                getY: () => point.getY() + y
+                                            };
+                                        });
+                                        
+                                        // Add to detected codes with adjusted location
+                                        const codeData = result.getText();
+                                        // Check if this code is already detected (avoid duplicates)
+                                        if (!detectedCodes.some(code => code.data === codeData)) {
+                                            detectedCodes.push({
+                                                data: codeData,
+                                                location: adjustedPoints
+                                            });
+                                        }
+                                    }
+                                } catch (sectionError) {
+                                    // No QR code in this section
+                                }
+                            } catch (error) {
+                                // Skip errors in section processing
+                            }
+                        }
+                    }
+                } catch (gridError) {
+                    console.warn("Grid-based detection failed:", gridError);
+                }
+            }
+            
+            // Handle detected QR codes
+            if (detectedCodes.length > 0) {
+                // Draw green rectangles around all detected QR codes
+                drawQRCodeHighlights(detectedCodes);
+                
+                // Process each detected QR code
+                detectedCodes.forEach(code => {
+                    handleQRCode(code);
+                });
+                
+                // Update status with count of detected codes
+                if (detectedCodes.length > 1) {
+                    updateScanStatus(`FOUND ${detectedCodes.length} CODES`);
+                } else {
+                    updateScanStatus('FOUND 1 CODE');
+                }
+            } else {
+                // No QR code found - this is normal, continue scanning
+                updateScanStatus('SCANNING');
+            }
+        } catch (error) {
+            console.error("Error in scan process:", error);
+            updateScanStatus('ERROR');
+        }
+    } else {
+        updateScanStatus('WAITING');
+    }
+    // Continue scanning
+    requestAnimationFrame(scanQRCode);
 }
 // New function to draw highlights around detected QR codes
 function drawQRCodeHighlights(detectedCodes) {
-if (!canvasElement || !canvas || detectedCodes.length === 0) return;
-// Make sure the canvas is visible for highlighting
-canvasElement.style.display = 'block';
-canvasElement.style.opacity = '1';
-// Save original canvas state
-canvas.save();
-// Draw rectangles for each detected QR code
-detectedCodes.forEach(code => {
-if (!code.location || code.location.length < 3) return;
-// Convert QR points to rectangle
-const points = code.location;
-let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
-// Find the bounding rectangle of the QR code
-for (let i = 0; i < points.length; i++) {
-const point = points[i];
-// Scale point coordinates from downsampled detection to full image
-const x = point.getX() * 2;  // Multiply by 2 because we downsampled by factor of 2
-const y = point.getY() * 2;
-minX = Math.min(minX, x);
-minY = Math.min(minY, y);
-maxX = Math.max(maxX, x);
-maxY = Math.max(maxY, y);
-}
-// Add padding around the QR code
-const padding = 10;
-minX = Math.max(0, minX - padding);
-minY = Math.max(0, minY - padding);
-maxX = Math.min(canvasElement.width, maxX + padding);
-maxY = Math.min(canvasElement.height, maxY + padding);
-// Draw green rectangle around QR code
-canvas.strokeStyle = 'rgba(0, 255, 0, 0.7)';  // Semi-transparent green
-canvas.lineWidth = 7;
-canvas.beginPath();
-canvas.rect(minX, minY, maxX - minX, maxY - minY);
-canvas.stroke();
-// Add small info label
-canvas.fillStyle = 'rgba(0, 255, 0, 0.7)';
-canvas.fillRect(minX, minY - 20, 80, 20);
-canvas.fillStyle = 'black';
-canvas.font = '12px Arial';
-canvas.fillText('QR Detected', minX + 5, minY - 5);
-});
-// Restore canvas state
-canvas.restore();
-// Reset canvas display after a short delay to avoid visual artifacts
-setTimeout(() => {
-// Don't hide the canvas, just redraw the video frame next cycle
-canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
-}, 100);
+    if (!canvasElement || !canvas || detectedCodes.length === 0) return;
+    
+    // Make sure the canvas is visible for highlighting
+    canvasElement.style.display = 'block';
+    canvasElement.style.opacity = '1';
+    
+    // Clear previous drawings first, but keep the video frame
+    canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+    
+    // Save original canvas state
+    canvas.save();
+    
+    // Draw rectangles for each detected QR code
+    detectedCodes.forEach((code, index) => {
+        if (!code.location || code.location.length < 3) return;
+        
+        // Convert QR points to rectangle
+        const points = code.location;
+        let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
+        
+        // Find the bounding rectangle of the QR code
+        for (let i = 0; i < points.length; i++) {
+            const point = points[i];
+            // Get coordinates - handle both direct values and getter methods
+            const x = typeof point.getX === 'function' ? point.getX() : point.x;
+            const y = typeof point.getY === 'function' ? point.getY() : point.y;
+            
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+        }
+        
+        // Add padding around the QR code
+        const padding = 10;
+        minX = Math.max(0, minX - padding);
+        minY = Math.max(0, minY - padding);
+        maxX = Math.min(canvasElement.width, maxX + padding);
+        maxY = Math.min(canvasElement.height, maxY + padding);
+        
+        // Use different colors for different QR codes
+        const colors = ['rgba(0, 255, 0, 0.7)', 'rgba(255, 0, 0, 0.7)', 'rgba(0, 0, 255, 0.7)', 'rgba(255, 255, 0, 0.7)'];
+        const colorIndex = index % colors.length;
+        const highlightColor = colors[colorIndex];
+        
+        // Draw rectangle around QR code
+        canvas.strokeStyle = highlightColor;
+        canvas.lineWidth = 7;
+        canvas.beginPath();
+        canvas.rect(minX, minY, maxX - minX, maxY - minY);
+        canvas.stroke();
+        
+        // Add small info label
+        canvas.fillStyle = highlightColor;
+        canvas.fillRect(minX, minY - 20, 80, 20);
+        canvas.fillStyle = 'black';
+        canvas.font = '12px Arial';
+        canvas.fillText(`QR #${index + 1}`, minX + 5, minY - 5);
+    });
+    
+    // Restore canvas state
+    canvas.restore();
 }
 // Helper function to handle detected QR codes
 function handleQRCode(code) {
-if (!code.data || code.data.trim() === '') {
-return;
-}
-// OPTIMIZATION: Use Set.has() for faster lookup than array.some()
-if (!batchModeActive) {
-// For non-batch mode, check session immediately
-const alreadyScannedInSession = new Set(activeSession.scans.map(scan => scan.content)).has(code.data);
-if (!lastScannedCodes.has(code.data) && !alreadyScannedInSession) {
-// Add to recent scans set
-lastScannedCodes.add(code.data);
-setTimeout(() => lastScannedCodes.delete(code.data), 3000);
-// Highlight and process
-highlightQR(code.location);
-playSuccessSound();
-processScannedCode(code.data);
-} else if (alreadyScannedInSession) {
-updateScanStatus('ALREADY SCANNED');
-} else {
-updateScanStatus('DUPLICATE');
-}
-} else {
-// Batch mode - just check against recent scans and batch buffer
-if (!lastScannedCodes.has(code.data) && !batchBuffer.has(code.data)) {
-// Add to recent scans set
-lastScannedCodes.add(code.data);
-setTimeout(() => lastScannedCodes.delete(code.data), 3000);
-// Highlight and add to batch
-highlightQR(code.location);
-batchBuffer.add(code.data);
-updateBatchIndicator();
-updateScanStatus('ADDED');
-playSuccessSound();
-} else if (batchBuffer.has(code.data)) {
-updateScanStatus('ALREADY IN BATCH');
-} else {
-updateScanStatus('DUPLICATE');
-}
-}
+    if (!code.data || code.data.trim() === '') {
+        return;
+    }
+    
+    // OPTIMIZATION: Use Set.has() for faster lookup than array.some()
+    if (!batchModeActive) {
+        // For non-batch mode, check session immediately
+        const alreadyScannedInSession = new Set(activeSession.scans.map(scan => scan.content)).has(code.data);
+        if (!lastScannedCodes.has(code.data) && !alreadyScannedInSession) {
+            // Add to recent scans set
+            lastScannedCodes.add(code.data);
+            setTimeout(() => lastScannedCodes.delete(code.data), 3000);
+            // Highlight and process
+            highlightQR(code.location);
+            playSuccessSound();
+            processScannedCode(code.data);
+        } else if (alreadyScannedInSession) {
+            // Already in session - don't show redundant messages for every frame
+            if (!lastStatusMessages.has('ALREADY_SCANNED:' + code.data)) {
+                updateScanStatus('ALREADY SCANNED');
+                lastStatusMessages.add('ALREADY_SCANNED:' + code.data);
+                setTimeout(() => lastStatusMessages.delete('ALREADY_SCANNED:' + code.data), 2000);
+            }
+        } else {
+            // Recent duplicate - don't show redundant messages for every frame
+            if (!lastStatusMessages.has('DUPLICATE:' + code.data)) {
+                updateScanStatus('DUPLICATE');
+                lastStatusMessages.add('DUPLICATE:' + code.data);
+                setTimeout(() => lastStatusMessages.delete('DUPLICATE:' + code.data), 2000);
+            }
+        }
+    } else {
+        // Batch mode - just check against recent scans and batch buffer
+        if (!lastScannedCodes.has(code.data) && !batchBuffer.has(code.data)) {
+            // Add to recent scans set
+            lastScannedCodes.add(code.data);
+            setTimeout(() => lastScannedCodes.delete(code.data), 3000);
+            // Highlight and add to batch
+            highlightQR(code.location);
+            batchBuffer.add(code.data);
+            updateBatchIndicator();
+            
+            // Only play sound and update status for new additions
+            if (!lastStatusMessages.has('ADDED:' + code.data)) {
+                updateScanStatus('ADDED');
+                playSuccessSound();
+                lastStatusMessages.add('ADDED:' + code.data);
+                setTimeout(() => lastStatusMessages.delete('ADDED:' + code.data), 2000);
+            }
+        } else if (batchBuffer.has(code.data)) {
+            // Already in batch - don't show redundant messages for every frame
+            if (!lastStatusMessages.has('ALREADY_IN_BATCH:' + code.data)) {
+                updateScanStatus('ALREADY IN BATCH');
+                lastStatusMessages.add('ALREADY_IN_BATCH:' + code.data);
+                setTimeout(() => lastStatusMessages.delete('ALREADY_IN_BATCH:' + code.data), 2000);
+            }
+        } else {
+            // Recent duplicate - don't show redundant messages for every frame
+            if (!lastStatusMessages.has('DUPLICATE:' + code.data)) {
+                updateScanStatus('DUPLICATE');
+                lastStatusMessages.add('DUPLICATE:' + code.data);
+                setTimeout(() => lastStatusMessages.delete('DUPLICATE:' + code.data), 2000);
+            }
+        }
+    }
 }
 // OPTIMIZATION: Simple detection of dark regions that might contain QR codes
 function detectPotentialQRRegions(imageData) {
