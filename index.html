@@ -203,27 +203,6 @@ max-height: 500px; /* Adjust based on content size */
 .signin-contact-info hr {
 margin: 10px 0;
 }
-/* Backup Alert Styles */
-.backup-alert {
-margin: 10px 0 15px 0;
-padding: 12px 15px;
-border-radius: var(--border-radius);
-font-weight: 500;
-box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
-text-align: center;
-position: relative;
-overflow: hidden;
-}
-.backup-alert.online {
-background-color: rgba(76, 175, 80, 0.1);
-border-left: 4px solid #4caf50;
-color: #2e7d32;
-}
-.backup-alert.offline {
-background-color: rgba(244, 67, 54, 0.1);
-border-left: 4px solid #f44336;
-color: #c62828;
-}
 /* Card Styles */
 .card {
 background-color: var(--card-bg);
@@ -778,9 +757,6 @@ max-height: 250px;
 <div class="tab" data-tab="contact">Contact</div>
 </div>
 <div id="scanner" class="tab-content active">
-<div id="backup-alert-container" class="backup-alert offline">
-  <span id="backup-alert-message">You are offline, don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.</span>
-</div>
 <div class="card">
 <h2>QR Code Scanner</h2>
 <div class="flex-between">
@@ -817,9 +793,6 @@ max-height: 250px;
 </div>
 </div>
 <div id="checklist" class="tab-content">
-<div id="backup-alert-container" class="backup-alert offline">
-  <span id="backup-alert-message">You are offline, don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.</span>
-</div>
 <div class="card">
 <h2>Student Selector</h2>
 <div class="flex-between">
@@ -862,9 +835,6 @@ max-height: 250px;
 </div>
 </div>
 <div id="history" class="tab-content">
-<div id="backup-alert-container" class="backup-alert offline">
-  <span id="backup-alert-message">You are offline, don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.</span>
-</div>
 <div class="card">
 <h2>Scanning History</h2>
 <div class="flex-between">
@@ -909,9 +879,6 @@ max-height: 250px;
 </div>
 </div>
 <div id="backup" class="tab-content">
-<div id="backup-alert-container" class="backup-alert offline">
-  <span id="backup-alert-message">You are offline, don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.</span>
-</div>
 <div class="card">
 <h2>Backup Controls</h2>
 <div class="backup-status">
@@ -1197,43 +1164,25 @@ let batchProcessingInterval = null; // Interval for batch processing
 //========================================================================================================== GITHUB BACKUP FUNCTIONS ========//
 // Check internet connection status
 function updateConnectionStatus() {
-  if (navigator.onLine) {
-    connectionStatus.textContent = 'Online';
-    connectionStatus.style.color = '#4caf50'; // Green
-    connectionStatus.style.fontWeight = 'bold';
-    // Update auto-backup status display if element exists
-    if (autoBackupStatus) {
-      const autoBackupEnabled = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) !== 'false';
-      autoBackupStatus.textContent = autoBackupEnabled ? 'Enabled' : 'Disabled';
-      autoBackupStatus.style.color = autoBackupEnabled ? '#4caf50' : '#f44336';
-    }
-    
-    // Update backup alerts
-    document.querySelectorAll('.backup-alert').forEach(alert => {
-      alert.className = 'backup-alert online';
-      const messageSpan = alert.querySelector('span');
-      if (messageSpan) {
-        messageSpan.textContent = "You are connected to the internet. Backups will occur automatically.";
-      }
-    });
-  } else {
-    connectionStatus.textContent = 'Offline';
-    connectionStatus.style.color = '#f44336'; // Red
-    connectionStatus.style.fontWeight = 'bold';
-    if (autoBackupStatus) {
-      autoBackupStatus.textContent = 'Unavailable (Offline)';
-      autoBackupStatus.style.color = '#f44336';
-    }
-    
-    // Update backup alerts
-    document.querySelectorAll('.backup-alert').forEach(alert => {
-      alert.className = 'backup-alert offline';
-      const messageSpan = alert.querySelector('span');
-      if (messageSpan) {
-        messageSpan.textContent = "You are offline, don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.";
-      }
-    });
-  }
+if (navigator.onLine) {
+connectionStatus.textContent = 'Online';
+connectionStatus.style.color = '#4caf50'; // Green
+connectionStatus.style.fontWeight = 'bold';
+// Update auto-backup status display if element exists
+if (autoBackupStatus) {
+const autoBackupEnabled = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) !== 'false';
+autoBackupStatus.textContent = autoBackupEnabled ? 'Enabled' : 'Disabled';
+autoBackupStatus.style.color = autoBackupEnabled ? '#4caf50' : '#f44336';
+}
+} else {
+connectionStatus.textContent = 'Offline';
+connectionStatus.style.color = '#f44336'; // Red
+connectionStatus.style.fontWeight = 'bold';
+if (autoBackupStatus) {
+autoBackupStatus.textContent = 'Unavailable (Offline)';
+autoBackupStatus.style.color = '#f44336';
+}
+}
 }
 // Get GitHub token by combining prefix and suffix
 function getGitHubToken() {
@@ -1765,56 +1714,6 @@ console.log(`Token format check:
 `);
 return true;
 }
-//========================================================================================================== BACKUP ALERT FEATURE ========//
-function setupBackupAlert() {
-  // Create backup alert elements for each tab that should display it
-  const targetTabs = ['scanner', 'checklist', 'history', 'backup'];
-  
-  targetTabs.forEach(tabId => {
-    const tabContent = document.getElementById(tabId);
-    if (tabContent) {
-      // Create the alert element
-      const alertElement = document.createElement('div');
-      alertElement.id = `backup-alert-${tabId}`;
-      alertElement.className = 'backup-alert ' + (navigator.onLine ? 'online' : 'offline');
-      
-      // Create the message span
-      const messageSpan = document.createElement('span');
-      messageSpan.textContent = navigator.onLine 
-        ? "You are connected to the internet. Backups will occur automatically." 
-        : "You are offline, don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.";
-      
-      // Append the span to the alert
-      alertElement.appendChild(messageSpan);
-      
-      // Insert the alert at the top of the tab content
-      tabContent.insertBefore(alertElement, tabContent.firstChild);
-    }
-  });
-  
-  // Function to update all alerts
-  function updateAllAlerts() {
-    targetTabs.forEach(tabId => {
-      const alert = document.getElementById(`backup-alert-${tabId}`);
-      if (alert) {
-        // Update the class
-        alert.className = 'backup-alert ' + (navigator.onLine ? 'online' : 'offline');
-        
-        // Update the message
-        const messageSpan = alert.querySelector('span');
-        if (messageSpan) {
-          messageSpan.textContent = navigator.onLine 
-            ? "You are connected to the internet. Backups will occur automatically." 
-            : "You are offline, don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.";
-        }
-      }
-    });
-  }
-  
-  // Add listeners for online/offline events to update the alerts
-  window.addEventListener('online', updateAllAlerts);
-  window.addEventListener('offline', updateAllAlerts);
-}
 //========================================================================================================== INITIALIZATION ========//
 // Check if jsQR is already loaded from the local file
 document.addEventListener('DOMContentLoaded', function() {
@@ -1823,8 +1722,6 @@ console.log("DOM fully loaded");
 loadSessionsFromStorage();
 checkForRecoverableSession();
 updateHistoryView();
-  // Setup backup alerts
-  setupBackupAlert();
 // Initialize backup tab
 updateConnectionStatus();
 loadGitHubToken();
