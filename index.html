@@ -778,6 +778,9 @@ max-height: 250px;
 <div class="tab" data-tab="contact">Contact</div>
 </div>
 <div id="scanner" class="tab-content active">
+<div id="backup-alert-container" class="backup-alert offline">
+  <span id="backup-alert-message">You are offline, don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.</span>
+</div>
 <div class="card">
 <h2>QR Code Scanner</h2>
 <div class="flex-between">
@@ -814,6 +817,9 @@ max-height: 250px;
 </div>
 </div>
 <div id="checklist" class="tab-content">
+<div id="backup-alert-container" class="backup-alert offline">
+  <span id="backup-alert-message">You are offline, don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.</span>
+</div>
 <div class="card">
 <h2>Student Selector</h2>
 <div class="flex-between">
@@ -856,6 +862,9 @@ max-height: 250px;
 </div>
 </div>
 <div id="history" class="tab-content">
+<div id="backup-alert-container" class="backup-alert offline">
+  <span id="backup-alert-message">You are offline, don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.</span>
+</div>
 <div class="card">
 <h2>Scanning History</h2>
 <div class="flex-between">
@@ -900,6 +909,9 @@ max-height: 250px;
 </div>
 </div>
 <div id="backup" class="tab-content">
+<div id="backup-alert-container" class="backup-alert offline">
+  <span id="backup-alert-message">You are offline, don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.</span>
+</div>
 <div class="card">
 <h2>Backup Controls</h2>
 <div class="backup-status">
@@ -1185,25 +1197,43 @@ let batchProcessingInterval = null; // Interval for batch processing
 //========================================================================================================== GITHUB BACKUP FUNCTIONS ========//
 // Check internet connection status
 function updateConnectionStatus() {
-if (navigator.onLine) {
-connectionStatus.textContent = 'Online';
-connectionStatus.style.color = '#4caf50'; // Green
-connectionStatus.style.fontWeight = 'bold';
-// Update auto-backup status display if element exists
-if (autoBackupStatus) {
-const autoBackupEnabled = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) !== 'false';
-autoBackupStatus.textContent = autoBackupEnabled ? 'Enabled' : 'Disabled';
-autoBackupStatus.style.color = autoBackupEnabled ? '#4caf50' : '#f44336';
-}
-} else {
-connectionStatus.textContent = 'Offline';
-connectionStatus.style.color = '#f44336'; // Red
-connectionStatus.style.fontWeight = 'bold';
-if (autoBackupStatus) {
-autoBackupStatus.textContent = 'Unavailable (Offline)';
-autoBackupStatus.style.color = '#f44336';
-}
-}
+  if (navigator.onLine) {
+    connectionStatus.textContent = 'Online';
+    connectionStatus.style.color = '#4caf50'; // Green
+    connectionStatus.style.fontWeight = 'bold';
+    // Update auto-backup status display if element exists
+    if (autoBackupStatus) {
+      const autoBackupEnabled = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) !== 'false';
+      autoBackupStatus.textContent = autoBackupEnabled ? 'Enabled' : 'Disabled';
+      autoBackupStatus.style.color = autoBackupEnabled ? '#4caf50' : '#f44336';
+    }
+    
+    // Update backup alerts
+    document.querySelectorAll('.backup-alert').forEach(alert => {
+      alert.className = 'backup-alert online';
+      const messageSpan = alert.querySelector('span');
+      if (messageSpan) {
+        messageSpan.textContent = "You are connected to the internet. Backups will occur automatically.";
+      }
+    });
+  } else {
+    connectionStatus.textContent = 'Offline';
+    connectionStatus.style.color = '#f44336'; // Red
+    connectionStatus.style.fontWeight = 'bold';
+    if (autoBackupStatus) {
+      autoBackupStatus.textContent = 'Unavailable (Offline)';
+      autoBackupStatus.style.color = '#f44336';
+    }
+    
+    // Update backup alerts
+    document.querySelectorAll('.backup-alert').forEach(alert => {
+      alert.className = 'backup-alert offline';
+      const messageSpan = alert.querySelector('span');
+      if (messageSpan) {
+        messageSpan.textContent = "You are offline, don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.";
+      }
+    });
+  }
 }
 // Get GitHub token by combining prefix and suffix
 function getGitHubToken() {
@@ -1736,146 +1766,119 @@ console.log(`Token format check:
 return true;
 }
 //========================================================================================================== BACKUP ALERT FEATURE ========//
-// Function to create or update the backup alert based on connection status
-function updateBackupAlert() {
-  // Check which tab is active
-  const activeTab = document.querySelector('.tab.active').dataset.tab;
+function setupBackupAlert() {
+  // Create backup alert elements for each tab that should display it
+  const targetTabs = ['scanner', 'checklist', 'history', 'backup'];
   
-  // Only show alert on these tabs
-  const showAlertOn = ['scanner', 'checklist', 'history', 'backup'];
-  
-  // Get or create the alert element
-  let alertElement = document.getElementById('backup-connection-alert');
-  
-  if (!alertElement) {
-    // Create the alert element if it doesn't exist
-    alertElement = document.createElement('div');
-    alertElement.id = 'backup-connection-alert';
-    alertElement.className = 'backup-alert';
-    
-    // Insert it at the top of the container, after the tabs
-    const container = document.querySelector('.container');
-    const tabs = document.querySelector('.tabs');
-    container.insertBefore(alertElement, tabs.nextSibling);
-  }
-  
-  // Set content and styling based on connection status
-  if (showAlertOn.includes(activeTab)) {
-    // Show the alert
-    alertElement.style.display = 'block';
-    
-    if (navigator.onLine) {
-      alertElement.className = 'backup-alert online';
-      alertElement.textContent = 'You are connected to the internet. Backups will occur automatically.';
-    } else {
-      alertElement.className = 'backup-alert offline';
-      alertElement.textContent = 'You are offline, don\'t forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.';
-    }
-  } else {
-    // Hide the alert on other tabs
-    alertElement.style.display = 'none';
-  }
-}
-
-// Call this function when tabs are switched
-function addBackupAlertToTabSwitching() {
-  // Get all tab elements
-  const tabs = document.querySelectorAll('.tab');
-  
-  // Add the updateBackupAlert function to the existing tab click event listeners
-  tabs.forEach(tab => {
-    // Clone the existing event listener
-    const oldClickHandler = tab.onclick;
-    
-    // Replace with a new handler that calls both the original and our new function
-    tab.onclick = function(event) {
-      // Call the original handler if it exists
-      if (oldClickHandler) {
-        oldClickHandler.call(this, event);
-      }
+  targetTabs.forEach(tabId => {
+    const tabContent = document.getElementById(tabId);
+    if (tabContent) {
+      // Create the alert element
+      const alertElement = document.createElement('div');
+      alertElement.id = `backup-alert-${tabId}`;
+      alertElement.className = 'backup-alert ' + (navigator.onLine ? 'online' : 'offline');
       
-      // Call our new function after a short delay to ensure the tab switch is complete
-      setTimeout(updateBackupAlert, 50);
-    };
+      // Create the message span
+      const messageSpan = document.createElement('span');
+      messageSpan.textContent = navigator.onLine 
+        ? "You are connected to the internet. Backups will occur automatically." 
+        : "You are offline, don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.";
+      
+      // Append the span to the alert
+      alertElement.appendChild(messageSpan);
+      
+      // Insert the alert at the top of the tab content
+      tabContent.insertBefore(alertElement, tabContent.firstChild);
+    }
   });
-}
-
-// Initialize the backup alert feature
-function initializeBackupAlert() {
-  // Initial update
-  updateBackupAlert();
   
-  // Add to tab switching
-  addBackupAlertToTabSwitching();
+  // Function to update all alerts
+  function updateAllAlerts() {
+    targetTabs.forEach(tabId => {
+      const alert = document.getElementById(`backup-alert-${tabId}`);
+      if (alert) {
+        // Update the class
+        alert.className = 'backup-alert ' + (navigator.onLine ? 'online' : 'offline');
+        
+        // Update the message
+        const messageSpan = alert.querySelector('span');
+        if (messageSpan) {
+          messageSpan.textContent = navigator.onLine 
+            ? "You are connected to the internet. Backups will occur automatically." 
+            : "You are offline, don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.";
+        }
+      }
+    });
+  }
   
-  // Update the alert when online/offline status changes
-  window.addEventListener('online', updateBackupAlert);
-  window.addEventListener('offline', updateBackupAlert);
+  // Add listeners for online/offline events to update the alerts
+  window.addEventListener('online', updateAllAlerts);
+  window.addEventListener('offline', updateAllAlerts);
 }
 //========================================================================================================== INITIALIZATION ========//
 // Check if jsQR is already loaded from the local file
 document.addEventListener('DOMContentLoaded', function() {
-  preloadSuccessSound();
-  console.log("DOM fully loaded");
-  loadSessionsFromStorage();
-  checkForRecoverableSession();
-  updateHistoryView();
-  // Initialize backup tab
-  updateConnectionStatus();
-  loadGitHubToken();
-  updateLastBackupTimeDisplay();
-  // Setup manual entry functionality
-  setupManualEntryButton();
-  // Setup button event listeners
-  setupButtonEventListeners();
-  // Enable auto-backup by default
-  if (localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) === null) {
-    localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, 'true');
-  }
-  // Setup online/offline event listeners
-  window.addEventListener('online', () => {
-    updateConnectionStatus();
-    // Try auto-backup when connection is restored
-    tryAutoBackup();
-  });
-  window.addEventListener('offline', updateConnectionStatus);
-  // Check if jsQR is already defined (from the script tag in HTML)
-  if (typeof jsQR === 'function') {
-    console.log("jsQR is already loaded from local file");
-    jsQRLoaded = true;
-  } else {
-    console.log("jsQR not detected, will attempt to load");
-    loadJsQR()
-      .then(() => console.log("jsQR library loaded and ready"))
-      .catch(error => {
-        console.error("Error loading jsQR:", error);
-        alert("Failed to load QR code scanning library. Please check your files and try again.");
-      });
-  }
-  // Load last backup session count
-  lastBackupSessions = parseInt(localStorage.getItem(LAST_BACKUP_SESSIONS_KEY) || '0');
-  // Try auto-backup if online and there are new sessions
-  if (navigator.onLine) {
-    // Use setTimeout to ensure the app is fully loaded first
-    setTimeout(() => {
-      tryAutoBackup().then(success => {
-        if (success) {
-          console.log("Initial auto-backup completed");
-        }
-      });
-    }, 2000);
-  }
-  // Add beforeunload event listener to prevent accidental closing during active session
-  // This only handles scanner session - checklist module handles its own separately
-  window.addEventListener('beforeunload', handleBeforeUnload);
-  // Initialize the checklist module if the elements exist
-  if (document.getElementById('startChecklistSessionBtn')) {
-    initializeChecklistModule();
-  }
-  
-  // Initialize backup alert feature
-  initializeBackupAlert();
-});//================================================================================================================================
+preloadSuccessSound();
+console.log("DOM fully loaded");
+loadSessionsFromStorage();
+checkForRecoverableSession();
+updateHistoryView();
+  // Setup backup alerts
+  setupBackupAlert();
+// Initialize backup tab
+updateConnectionStatus();
+loadGitHubToken();
+updateLastBackupTimeDisplay();
+// Setup manual entry functionality
+setupManualEntryButton();
+// Setup button event listeners
+setupButtonEventListeners();
+// Enable auto-backup by default
+if (localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) === null) {
+localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, 'true');
+}
+// Setup online/offline event listeners
+window.addEventListener('online', () => {
+updateConnectionStatus();
+// Try auto-backup when connection is restored
+tryAutoBackup();
+});
+window.addEventListener('offline', updateConnectionStatus);
+// Check if jsQR is already defined (from the script tag in HTML)
+if (typeof jsQR === 'function') {
+console.log("jsQR is already loaded from local file");
+jsQRLoaded = true;
+} else {
+console.log("jsQR not detected, will attempt to load");
+loadJsQR()
+.then(() => console.log("jsQR library loaded and ready"))
+.catch(error => {
+console.error("Error loading jsQR:", error);
+alert("Failed to load QR code scanning library. Please check your files and try again.");
+});
+}
+// Load last backup session count
+lastBackupSessions = parseInt(localStorage.getItem(LAST_BACKUP_SESSIONS_KEY) || '0');
+// Try auto-backup if online and there are new sessions
+if (navigator.onLine) {
+// Use setTimeout to ensure the app is fully loaded first
+setTimeout(() => {
+tryAutoBackup().then(success => {
+if (success) {
+console.log("Initial auto-backup completed");
+}
+});
+}, 2000);
+}
+// Add beforeunload event listener to prevent accidental closing during active session
+// This only handles scanner session - checklist module handles its own separately
+window.addEventListener('beforeunload', handleBeforeUnload);
+// Initialize the checklist module if the elements exist
+if (document.getElementById('startChecklistSessionBtn')) {
+initializeChecklistModule();
+}
+});
+//================================================================================================================================
 // Load jsQR from local file
 function loadJsQR() {
 return new Promise((resolve, reject) => {
