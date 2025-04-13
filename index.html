@@ -2451,7 +2451,7 @@ statusEl.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';  // Default color
 }
 }
 }
-// QR code scanning function 
+// QR code scanning function - Alternative implementation
 function scanQRCode() {
     if (!scanning) return;
     
@@ -2459,17 +2459,6 @@ function scanQRCode() {
         try {
             // Draw the video frame to the canvas
             canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
-            
-            // Get image data from the canvas
-            const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
-            
-            // Check if we have valid image data
-            if (imageData.data.length === 0 || imageData.width === 0 || imageData.height === 0) {
-                console.error("Invalid image data");
-                updateScanStatus('Error: Invalid image data');
-                requestAnimationFrame(scanQRCode);
-                return;
-            }
             
             // Verify ZXing is available
             if (typeof ZXing === 'undefined') {
@@ -2480,44 +2469,45 @@ function scanQRCode() {
                 return;
             }
             
-            // Process QR codes with ZXing - FIXED IMPLEMENTATION
+            // Get image data
+            const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+            const width = imageData.width;
+            const height = imageData.height;
+            
+            // Create a Uint8Array for ZXing
+            const data = new Uint8ClampedArray(width * height);
+            
+            // Convert RGBA to grayscale for better QR detection
+            for (let i = 0; i < height; i++) {
+                for (let j = 0; j < width; j++) {
+                    const idx = (i * width + j) * 4;
+                    const r = imageData.data[idx + 0];
+                    const g = imageData.data[idx + 1];
+                    const b = imageData.data[idx + 2];
+                    // Convert to grayscale using standard luminance formula
+                    data[i * width + j] = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+                }
+            }
+            
             try {
-                // Create a bitmap from the image data
-                const width = imageData.width;
-                const height = imageData.height;
+                // Use ZXing to decode QR code
+                const source = new ZXing.RGBLuminanceSource(data, width, height);
+                const binarizer = new ZXing.HybridBinarizer(source);
+                const bitmap = new ZXing.BinaryBitmap(binarizer);
                 
-                // This is the key part that was incorrectly implemented
-                // We need to use ZXing's correct API
-                const reader = new ZXing.BrowserQRCodeReader();
+                const reader = new ZXing.QRCodeReader();
+                const result = reader.decode(bitmap);
                 
-                // Decode directly from the canvas element
-                reader.decodeFromCanvas(canvasElement)
-                    .then(result => {
-                        if (result) {
-                            // Successfully decoded a QR code
-                            handleQRCode({
-                                data: result.text,
-                                location: result.resultPoints
-                            });
-                            
-                            // Visual indication of successful scan
-                            highlightQR(result.resultPoints);
-                        } else {
-                            // No QR code found
-                            updateScanStatus('Scanning... Position QR code in the frame');
-                        }
-                    })
-                    .catch(err => {
-                        // No QR code found or error in decoding
-                        // Don't display an error for normal "not found" cases
-                        if (err.message !== "No MultiFormat Readers were able to detect the code.") {
-                            console.error("ZXing error:", err);
-                        }
-                        updateScanStatus('Scanning... Position QR code in the frame');
+                if (result) {
+                    handleQRCode({
+                        data: result.getText(),
+                        location: result.getResultPoints()
                     });
-            } catch (qrError) {
-                console.error("ZXing processing error:", qrError);
-                updateScanStatus('QR processing error: ' + qrError.message);
+                    highlightQR(result.getResultPoints());
+                }
+            } catch (notFoundError) {
+                // No QR code found - this is normal, continue scanning
+                updateScanStatus('Scanning... Position QR code in the frame');
             }
         } catch (error) {
             console.error("Error in scan process:", error);
