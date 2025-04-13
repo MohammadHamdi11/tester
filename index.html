@@ -224,6 +224,30 @@ background-color: rgba(244, 67, 54, 0.1);
 border-left: 4px solid #f44336;
 color: #c62828;
 }
+/* iOS-specific alert styles */
+.ios-alert {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 98 !important;
+    position: relative !important;
+    margin: 10px 0 !important;
+    padding: 12px 15px !important;
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.1) !important;
+    -webkit-appearance: none !important;
+}
+
+/* Make sure alerts are visible on iOS Safari */
+@supports (-webkit-touch-callout: none) {
+    .backup-alert {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        margin: 10px 0 !important;
+    }
+}
 /* Card Styles */
 .card {
 background-color: var(--card-bg);
@@ -1205,92 +1229,129 @@ let batchProcessingInterval = null; // Interval for batch processing
 //========================================================================================================== GITHUB BACKUP FUNCTIONS ========//
 // Check internet connection status
 function updateConnectionStatus() {
-const connectionStatus = document.getElementById('connectionStatus');
-// Get all alert elements
-const alertIds = [
-'scanner-backup-alert',
-'checklist-backup-alert', 
-'history-backup-alert',
-'backup-alert'
-];
-const messageIds = [
-'scanner-backup-alert-message',
-'checklist-backup-alert-message',
-'history-backup-alert-message',
-'backup-alert-message'
-];
-// Force visibility on alerts
-alertIds.forEach(id => {
-const alert = document.getElementById(id);
-if (alert) {
-alert.style.display = 'block';
+    const connectionStatus = document.getElementById('connectionStatus');
+    // Get all alert elements
+    const alertIds = [
+        'scanner-backup-alert',
+        'checklist-backup-alert', 
+        'history-backup-alert',
+        'backup-alert'
+    ];
+    const messageIds = [
+        'scanner-backup-alert-message',
+        'checklist-backup-alert-message',
+        'history-backup-alert-message',
+        'backup-alert-message'
+    ];
+    
+    // Force visibility on alerts
+    alertIds.forEach(id => {
+        const alert = document.getElementById(id);
+        if (alert) {
+            alert.style.display = 'block';
+            alert.style.visibility = 'visible';
+            alert.style.opacity = '1';
+            
+            // iOS-specific fix: add !important inline
+            if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+                alert.setAttribute('style', 'display: block !important; visibility: visible !important; opacity: 1 !important;');
+            }
+        }
+    });
+    
+    if (navigator.onLine) {
+        // Online status
+        if (connectionStatus) {
+            connectionStatus.textContent = 'Online';
+            connectionStatus.style.color = '#4caf50'; // Green
+            connectionStatus.style.fontWeight = 'bold';
+        }
+        
+        // Update all alerts for online status
+        alertIds.forEach(id => {
+            const alert = document.getElementById(id);
+            if (alert) {
+                alert.classList.remove('offline');
+                alert.classList.add('online');
+                // Force a reflow to restart animation for iOS
+                void alert.offsetWidth;
+            }
+        });
+        
+        messageIds.forEach(id => {
+            const message = document.getElementById(id);
+            if (message) {
+                message.textContent = "You are connected to the internet. Backups will occur automatically.";
+            }
+        });
+        
+        // Update auto-backup status display if element exists
+        if (typeof autoBackupStatus !== 'undefined' && autoBackupStatus) {
+            const autoBackupEnabled = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) !== 'false';
+            autoBackupStatus.textContent = autoBackupEnabled ? 'Enabled' : 'Disabled';
+            autoBackupStatus.style.color = autoBackupEnabled ? '#4caf50' : '#f44336';
+        }
+    } else {
+        // Offline status
+        if (connectionStatus) {
+            connectionStatus.textContent = 'Offline';
+            connectionStatus.style.color = '#f44336'; // Red
+            connectionStatus.style.fontWeight = 'bold';
+        }
+        
+        // Update all alerts for offline status
+        alertIds.forEach(id => {
+            const alert = document.getElementById(id);
+            if (alert) {
+                alert.classList.remove('online');
+                alert.classList.add('offline');
+                // Force a reflow to restart animation for iOS
+                void alert.offsetWidth;
+            }
+        });
+        
+        messageIds.forEach(id => {
+            const message = document.getElementById(id);
+            if (message) {
+                message.textContent = "You are offline, don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.";
+            }
+        });
+        
+        if (typeof autoBackupStatus !== 'undefined' && autoBackupStatus) {
+            autoBackupStatus.textContent = 'Unavailable (Offline)';
+            autoBackupStatus.style.color = '#f44336';
+        }
+    }
+    
+    // Force visual update by toggling a class
+    alertIds.forEach(id => {
+        const alert = document.getElementById(id);
+        if (alert) {
+            alert.classList.add('updating');
+            setTimeout(() => alert.classList.remove('updating'), 50);
+        }
+    });
 }
-});
-if (navigator.onLine) {
-// Online status
-if (connectionStatus) {
-connectionStatus.textContent = 'Online';
-connectionStatus.style.color = '#4caf50'; // Green
-connectionStatus.style.fontWeight = 'bold';
-}
-// Update all alerts for online status
-alertIds.forEach(id => {
-const alert = document.getElementById(id);
-if (alert) {
-alert.classList.remove('offline');
-alert.classList.add('online');
-// Force a reflow to restart animation for iOS
-void alert.offsetWidth;
-}
-});
-messageIds.forEach(id => {
-const message = document.getElementById(id);
-if (message) {
-message.textContent = "You are connected to the internet. Backups will occur automatically.";
-}
-});
-// Update auto-backup status display if element exists
-if (typeof autoBackupStatus !== 'undefined' && autoBackupStatus) {
-const autoBackupEnabled = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) !== 'false';
-autoBackupStatus.textContent = autoBackupEnabled ? 'Enabled' : 'Disabled';
-autoBackupStatus.style.color = autoBackupEnabled ? '#4caf50' : '#f44336';
-}
-} else {
-// Offline status
-if (connectionStatus) {
-connectionStatus.textContent = 'Offline';
-connectionStatus.style.color = '#f44336'; // Red
-connectionStatus.style.fontWeight = 'bold';
-}
-// Update all alerts for offline status
-alertIds.forEach(id => {
-const alert = document.getElementById(id);
-if (alert) {
-alert.classList.remove('online');
-alert.classList.add('offline');
-// Force a reflow to restart animation for iOS
-void alert.offsetWidth;
-}
-});
-messageIds.forEach(id => {
-const message = document.getElementById(id);
-if (message) {
-message.textContent = "You are offline, don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.";
-}
-});
-if (typeof autoBackupStatus !== 'undefined' && autoBackupStatus) {
-autoBackupStatus.textContent = 'Unavailable (Offline)';
-autoBackupStatus.style.color = '#f44336';
-}
-}
-// Force visual update by toggling a class
-alertIds.forEach(id => {
-const alert = document.getElementById(id);
-if (alert) {
-alert.classList.add('updating');
-setTimeout(() => alert.classList.remove('updating'), 50);
-}
-});
+function ensureAlertsVisibility() {
+    const alertIds = [
+        'scanner-backup-alert',
+        'checklist-backup-alert', 
+        'history-backup-alert',
+        'backup-alert'
+    ];
+    
+    // Force alerts to be visible
+    alertIds.forEach(id => {
+        const alert = document.getElementById(id);
+        if (alert) {
+            // Force visibility with !important for iOS
+            if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+                alert.setAttribute('style', 'display: block !important; visibility: visible !important; opacity: 1 !important;');
+            } else {
+                alert.style.display = 'block';
+            }
+        }
+    });
 }
 // Get GitHub token by combining prefix and suffix
 function getGitHubToken() {
@@ -1839,6 +1900,8 @@ checkForRecoverableSession();
 updateHistoryView();
 // Initialize the alerts
 initializeAlerts();
+    // Run periodic check for alert visibility
+    setInterval(ensureAlertsVisibility, 5000);
 // Initialize backup tab
 updateConnectionStatus();
 loadGitHubToken();
@@ -1893,27 +1956,33 @@ initializeChecklistModule();
 }
 });
 function initializeAlerts() {
-const alertIds = [
-'scanner-backup-alert',
-'checklist-backup-alert', 
-'history-backup-alert',
-'backup-alert'
-];
-alertIds.forEach(id => {
-const alert = document.getElementById(id);
-if (alert) {
-// Make sure alerts are visible
-alert.style.display = 'block';
-// Add iOS-specific styles if needed
-if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-alert.classList.add('ios-device');
-}
-}
-});
-// Update connection status immediately
-updateConnectionStatus();
-// Then set up a periodic refresh
-setInterval(updateConnectionStatus, 10000); // Check every 10 seconds
+    const alertIds = [
+        'scanner-backup-alert',
+        'checklist-backup-alert', 
+        'history-backup-alert',
+        'backup-alert'
+    ];
+    
+    alertIds.forEach(id => {
+        const alert = document.getElementById(id);
+        if (alert) {
+            // Force display block and visibility
+            alert.style.display = 'block';
+            alert.style.visibility = 'visible';
+            alert.style.opacity = '1';
+            
+            // Add iOS-specific class
+            if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+                alert.classList.add('ios-alert');
+            }
+        }
+    });
+    
+    // Update connection status immediately
+    updateConnectionStatus();
+    
+    // Then set up a periodic refresh
+    setInterval(updateConnectionStatus, 10000); // Check every 10 seconds
 }
 //================================================================================================================================
 // Load jsQR from local file
