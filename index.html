@@ -1177,6 +1177,9 @@ function createBackupAlertElement() {
     backupAlert.style.textAlign = 'center';
     backupAlert.style.position = 'relative';
     backupAlert.style.overflow = 'hidden';
+backupAlert.style.webkitOverflowScrolling = 'touch';
+backupAlert.style.webkitTapHighlightColor = 'transparent';
+backupAlert.style.webkitUserSelect = 'none';
     
     // Set the initial message based on connection status
     updateBackupAlertMessage(backupAlert);
@@ -1245,7 +1248,8 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('online', updateAllBackupAlerts);
     window.addEventListener('offline', updateAllBackupAlerts);
 });
-//========================================================================================================== GITHUB BACKUP FUNCTIONS ========//// Check internet connection status
+//========================================================================================================== GITHUB BACKUP FUNCTIONS ========//
+// Check internet connection status
 function updateConnectionStatus() {
     if (navigator.onLine) {
         connectionStatus.textContent = 'Online';
