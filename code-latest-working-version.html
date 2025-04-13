@@ -2373,14 +2373,16 @@ scanLogPanel.style.fontSize = '14px';
 scanLogPanel.style.zIndex = '100';
 scanLogPanel.innerHTML = '<div style="text-align: center; font-weight: bold; margin-bottom: 5px;">Scan Log</div>';
 document.querySelector('.scanner-container').appendChild(scanLogPanel);
-// This is crucial for QR detection to work
+// This is crucial for QR detection to work and for highlighting
 canvasElement.className = 'scanner-ui';
 canvasElement.style.position = 'absolute';
 canvasElement.style.top = '0';
 canvasElement.style.left = '0';
 canvasElement.style.width = '100%';
 canvasElement.style.height = '100%';
-canvasElement.style.display = 'none'; 
+canvasElement.style.display = 'block'; // Show canvas for highlighting
+canvasElement.style.opacity = '1'; // Make canvas fully visible
+canvasElement.style.zIndex = '98'; // Below frame but above video
 document.querySelector('.scanner-container').appendChild(canvasElement);
 }
 // Add a log entry to the scan log
@@ -2429,35 +2431,60 @@ frame.style.borderColor = '#24325f';
 // Update scan status message
 function updateScanStatus(message) {
 const statusEl = document.getElementById('scan-status');
-if (statusEl) {
-statusEl.textContent = message;
-// Add visual indication of status
-if (message.includes('Successfully')) {
-statusEl.style.backgroundColor = 'rgba(0, 128, 0, 0.8)';  // Green background for success
-// Briefly show success then reset
-setTimeout(() => {
-statusEl.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-}, 5000);
+if (!statusEl) return;
+// SIMPLIFIED: Just show one-word status messages
+let displayMessage = message;
+let bgColor = 'rgba(0, 0, 0, 0.7)';  // Default color
+// Handle different message types with simple display text
+if (typeof message === 'string') {
+if (message.includes('Successfully') || message.includes('Processed')) {
+displayMessage = 'SUCCESS';
+bgColor = 'rgba(0, 128, 0, 0.8)';  // Green
 } else if (message.includes('Error') || message.includes('failed')) {
-statusEl.style.backgroundColor = 'rgba(220, 0, 0, 0.8)';  // Red background for errors
+displayMessage = 'ERROR';
+bgColor = 'rgba(220, 0, 0, 0.8)';  // Red
 } else if (message.includes('Duplicate')) {
-statusEl.style.backgroundColor = 'rgba(255, 165, 0, 0.8)';  // Orange for duplicates
-} else {
-statusEl.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';  // Default color
+displayMessage = 'DUPLICATE';
+bgColor = 'rgba(255, 165, 0, 0.8)';  // Orange
+} else if (message.includes('Already')) {
+displayMessage = 'ALREADY SCANNED';
+bgColor = 'rgba(255, 165, 0, 0.8)';  // Orange
+} else if (message.includes('Added to batch')) {
+displayMessage = 'ADDED';
+bgColor = 'rgba(0, 128, 255, 0.8)';  // Blue
+} else if (message.includes('Scanning')) {
+displayMessage = 'SCANNING';
+} else if (message.includes('Waiting')) {
+displayMessage = 'WAITING';
+} else if (message.includes('Processing batch')) {
+displayMessage = 'PROCESSING';
+bgColor = 'rgba(255, 165, 0, 0.8)';  // Orange
 }
 }
+// Update the element
+statusEl.textContent = displayMessage;
+statusEl.style.backgroundColor = bgColor;
 }
 // QR code scanning function - Alternative implementation
 function scanQRCode() {
 if (!scanning) return;
+// Only process frames when video is ready
 if (video.readyState === video.HAVE_ENOUGH_DATA) {
 try {
+// OPTIMIZATION: Only process every other frame to reduce CPU usage
+if (window.scanFrameCounter === undefined) {
+window.scanFrameCounter = 0;
+}
+window.scanFrameCounter++;
+if (window.scanFrameCounter % 2 !== 0) {
+requestAnimationFrame(scanQRCode);
+return;
+}
 // Draw the video frame to the canvas
 canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
 // Verify ZXing is available
 if (typeof ZXing === 'undefined') {
-console.error("ZXing is not available");
-updateScanStatus('QR scanner not loaded correctly');
+updateScanStatus('ERROR');
 loadZXing().catch(err => console.error("Failed to reload ZXing:", err));
 requestAnimationFrame(scanQRCode);
 return;
@@ -2468,83 +2495,167 @@ const width = imageData.width;
 const height = imageData.height;
 // Create a Uint8Array for ZXing
 const data = new Uint8ClampedArray(width * height);
-// Convert RGBA to grayscale for better QR detection
-for (let i = 0; i < height; i++) {
-for (let j = 0; j < width; j++) {
+// OPTIMIZATION: Downsampling - only process every other pixel
+for (let i = 0; i < height; i += 2) {
+for (let j = 0; j < width; j += 2) {
 const idx = (i * width + j) * 4;
-const r = imageData.data[idx + 0];
-const g = imageData.data[idx + 1];
-const b = imageData.data[idx + 2];
-// Convert to grayscale using standard luminance formula
-data[i * width + j] = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+// Fast grayscale calculation
+const gray = (imageData.data[idx] + imageData.data[idx + 1] + imageData.data[idx + 2]) / 3;
+data[(i/2) * (width/2) + (j/2)] = gray;
 }
 }
 try {
 // Use ZXing to decode QR code
-const source = new ZXing.RGBLuminanceSource(data, width, height);
+const source = new ZXing.RGBLuminanceSource(data, width/2, height/2);
 const binarizer = new ZXing.HybridBinarizer(source);
 const bitmap = new ZXing.BinaryBitmap(binarizer);
-const reader = new ZXing.QRCodeReader();
-const result = reader.decode(bitmap);
-if (result) {
-handleQRCode({
+const reader = new ZXing.MultiFormatReader(); // Use MultiFormatReader to detect multiple QR codes
+// Store detected QR codes
+const detectedCodes = [];
+try {
+// Try to find all QR codes in the image
+const results = reader.decodeMultiple(bitmap);
+if (results && results.length > 0) {
+results.forEach(result => {
+detectedCodes.push({
 data: result.getText(),
 location: result.getResultPoints()
 });
-highlightQR(result.getResultPoints());
+});
 }
-} catch (notFoundError) {
+} catch (multiError) {
+// If multiple detection fails, try single detection
+try {
+const qrReader = new ZXing.QRCodeReader();
+const result = qrReader.decode(bitmap);
+if (result) {
+detectedCodes.push({
+data: result.getText(),
+location: result.getResultPoints()
+});
+}
+} catch (singleError) {
+// No QR code found
+}
+}
+// Handle detected QR codes
+if (detectedCodes.length > 0) {
+// Draw green rectangles around all detected QR codes
+drawQRCodeHighlights(detectedCodes);
+// Process each detected QR code
+detectedCodes.forEach(code => {
+handleQRCode(code);
+});
+}
+if (detectedCodes.length === 0) {
 // No QR code found - this is normal, continue scanning
-updateScanStatus('Scanning... Position QR code in the frame');
+updateScanStatus('SCANNING');
+}
+} catch (error) {
+console.error("Error in QR decoding:", error);
+updateScanStatus('ERROR');
 }
 } catch (error) {
 console.error("Error in scan process:", error);
-updateScanStatus('Error in scan process: ' + error.message);
+updateScanStatus('ERROR');
 }
 } else {
-updateScanStatus('Waiting for camera...');
+updateScanStatus('WAITING');
 }
 // Continue scanning
 requestAnimationFrame(scanQRCode);
+}
+// New function to draw highlights around detected QR codes
+function drawQRCodeHighlights(detectedCodes) {
+if (!canvasElement || !canvas || detectedCodes.length === 0) return;
+// Make sure the canvas is visible for highlighting
+canvasElement.style.display = 'block';
+canvasElement.style.opacity = '1';
+// Save original canvas state
+canvas.save();
+// Draw rectangles for each detected QR code
+detectedCodes.forEach(code => {
+if (!code.location || code.location.length < 3) return;
+// Convert QR points to rectangle
+const points = code.location;
+let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
+// Find the bounding rectangle of the QR code
+for (let i = 0; i < points.length; i++) {
+const point = points[i];
+// Scale point coordinates from downsampled detection to full image
+const x = point.getX() * 2;  // Multiply by 2 because we downsampled by factor of 2
+const y = point.getY() * 2;
+minX = Math.min(minX, x);
+minY = Math.min(minY, y);
+maxX = Math.max(maxX, x);
+maxY = Math.max(maxY, y);
+}
+// Add padding around the QR code
+const padding = 10;
+minX = Math.max(0, minX - padding);
+minY = Math.max(0, minY - padding);
+maxX = Math.min(canvasElement.width, maxX + padding);
+maxY = Math.min(canvasElement.height, maxY + padding);
+// Draw green rectangle around QR code
+canvas.strokeStyle = 'rgba(0, 255, 0, 0.7)';  // Semi-transparent green
+canvas.lineWidth = 7;
+canvas.beginPath();
+canvas.rect(minX, minY, maxX - minX, maxY - minY);
+canvas.stroke();
+// Add small info label
+canvas.fillStyle = 'rgba(0, 255, 0, 0.7)';
+canvas.fillRect(minX, minY - 20, 80, 20);
+canvas.fillStyle = 'black';
+canvas.font = '12px Arial';
+canvas.fillText('QR Detected', minX + 5, minY - 5);
+});
+// Restore canvas state
+canvas.restore();
+// Reset canvas display after a short delay to avoid visual artifacts
+setTimeout(() => {
+// Don't hide the canvas, just redraw the video frame next cycle
+canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+}, 100);
 }
 // Helper function to handle detected QR codes
 function handleQRCode(code) {
 if (!code.data || code.data.trim() === '') {
 return;
 }
-// Check if this code is already in our session
-const alreadyScannedInSession = activeSession.scans.some(scan => scan.content === code.data);
-// Check if this code was recently scanned (to prevent rapid duplicates)
+// OPTIMIZATION: Use Set.has() for faster lookup than array.some()
+if (!batchModeActive) {
+// For non-batch mode, check session immediately
+const alreadyScannedInSession = new Set(activeSession.scans.map(scan => scan.content)).has(code.data);
 if (!lastScannedCodes.has(code.data) && !alreadyScannedInSession) {
-// Add to recent scans set and set timeout to remove
+// Add to recent scans set
 lastScannedCodes.add(code.data);
-setTimeout(() => {
-lastScannedCodes.delete(code.data);
-}, 3000); // Prevent duplicate scans for 3 seconds
-// Highlight the QR code
+setTimeout(() => lastScannedCodes.delete(code.data), 3000);
+// Highlight and process
 highlightQR(code.location);
-if (batchModeActive) {
-// Add to batch buffer
-if (!batchBuffer.has(code.data)) {
-batchBuffer.add(code.data);
-updateBatchIndicator();
-// Visual feedback
-updateScanStatus(`Added to batch: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
-addScanLogEntry(`Queued: ${code.data.substring(0, 15)}${code.data.length > 15 ? '...' : ''}`, 'info');
-// Play a shorter sound for batch additions
-playSuccessSound();
-}
-} else {
-// Process immediately if not in batch mode
 playSuccessSound();
 processScannedCode(code.data);
-}
 } else if (alreadyScannedInSession) {
-// Already in session
-updateScanStatus(`Already scanned: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
+updateScanStatus('ALREADY SCANNED');
 } else {
-// Recent duplicate
-updateScanStatus(`Duplicate scan: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
+updateScanStatus('DUPLICATE');
+}
+} else {
+// Batch mode - just check against recent scans and batch buffer
+if (!lastScannedCodes.has(code.data) && !batchBuffer.has(code.data)) {
+// Add to recent scans set
+lastScannedCodes.add(code.data);
+setTimeout(() => lastScannedCodes.delete(code.data), 3000);
+// Highlight and add to batch
+highlightQR(code.location);
+batchBuffer.add(code.data);
+updateBatchIndicator();
+updateScanStatus('ADDED');
+playSuccessSound();
+} else if (batchBuffer.has(code.data)) {
+updateScanStatus('ALREADY IN BATCH');
+} else {
+updateScanStatus('DUPLICATE');
+}
 }
 }
 // OPTIMIZATION: Simple detection of dark regions that might contain QR codes
@@ -2646,10 +2757,10 @@ clearInterval(batchProcessingInterval);
 }
 batchBuffer.clear();
 batchModeActive = true;
-// Process the batch every 2 seconds
-batchProcessingInterval = setInterval(processBatch, 2000);
+// OPTIMIZATION: Process batch more frequently for better responsiveness
+batchProcessingInterval = setInterval(processBatch, 1000); // Process every 1 second instead of 2
 // Update UI to show batch mode is active
-addScanLogEntry('Batch mode active - Scanning multiple codes', 'info');
+addScanLogEntry('Batch mode active', 'info');
 // Add batch mode indicator to scanner UI if it doesn't exist
 if (!document.getElementById('batch-indicator')) {
 const batchIndicator = document.createElement('div');
@@ -2701,24 +2812,34 @@ if (processingBatch || batchBuffer.size === 0) return;
 processingBatch = true;
 try {
 const batchSize = batchBuffer.size;
+const batchCodes = Array.from(batchBuffer);
 // Show batch processing notification
-updateScanStatus(`Processing batch of ${batchSize} codes...`);
-// Process each code in the buffer
-batchBuffer.forEach(code => {
+updateScanStatus('PROCESSING');
+// OPTIMIZATION: Use Set for faster duplicate checking
+const sessionContentSet = new Set(activeSession.scans.map(scan => scan.content));
+// Filter out codes already in session
+const newCodes = batchCodes.filter(code => !sessionContentSet.has(code));
+// Process each new code
+newCodes.forEach(code => {
 processScannedCode(code);
 });
 // Clear the buffer after processing
 batchBuffer.clear();
 updateBatchIndicator();
 // Confirmation of batch processing
-updateScanStatus(`✅ Processed batch of ${batchSize} codes successfully`);
-addScanLogEntry(`Processed batch of ${batchSize} codes`, 'success');
+if (newCodes.length > 0) {
+updateScanStatus('SUCCESS');
+addScanLogEntry(`Processed ${newCodes.length} new codes`, 'success');
 // Play a success sound for the whole batch
 playSuccessSound();
+} else {
+updateScanStatus('NO NEW CODES');
+addScanLogEntry('No new codes to process', 'info');
+}
 } catch (error) {
 console.error("Error processing batch:", error);
-updateScanStatus(`Error processing batch: ${error.message}`);
-addScanLogEntry(`Batch processing error: ${error.message}`, 'error');
+updateScanStatus('ERROR');
+addScanLogEntry(`Batch error: ${error.message}`, 'error');
 } finally {
 processingBatch = false;
 }
@@ -2729,8 +2850,13 @@ function processScannedCode(data) {
 // Additional validation to ensure we're not adding empty codes
 if (!data || data.trim() === '') {
 console.error("Attempted to process empty QR code data");
-updateScanStatus('Error: Empty QR code data');
+updateScanStatus('ERROR');
 addScanLogEntry('Empty QR code data - not saved', 'error');
+return;
+}
+// OPTIMIZATION: Check if code already exists in session to prevent duplicates
+if (activeSession.scans.some(scan => scan.content === data)) {
+updateScanStatus('ALREADY SCANNED');
 return;
 }
 const now = new Date();
@@ -2762,8 +2888,8 @@ sessions[sessionIndex] = {...activeSession};
 // Save both active session and completed sessions
 saveActiveSession();
 saveSessionsToStorage();
-// Add to scan log
-addScanLogEntry(`Saved: ${data.substring(0, 15)}${data.length > 15 ? '...' : ''}`, 'success');
+// Add to scan log with shorter content display
+addScanLogEntry(`Saved code #${scan.id}`, 'success');
 }
 // End current scanning session - Renamed from stopScanner
 function endScanningSession() {
