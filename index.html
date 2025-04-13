@@ -1136,8 +1136,7 @@ let videoStream = null;
 let sessions = [];
 let activeSessionId = null;
 let lastScannedCodes = new Set(); // For avoiding duplicate scans in quick succession
-let zxingLoaded = false; // Changed from jsQRLoaded to zxingLoaded
-let codeReader = null; // ZXing code reader instance
+let jsQRLoaded = false;
 let autoSaveInterval = null;
 let backupInProgress = false;
 let lastBackupSessions = 0; // Track number of sessions at last backup
@@ -1717,113 +1716,101 @@ return true;
 }
 //========================================================================================================== INITIALIZATION ========//
 document.addEventListener('DOMContentLoaded', function() {
-preloadSuccessSound();
-console.log("DOM fully loaded");
-loadSessionsFromStorage();
-checkForRecoverableSession();
-updateHistoryView();
-// Initialize backup tab
-updateConnectionStatus();
-loadGitHubToken();
-updateLastBackupTimeDisplay();
-// Setup manual entry functionality
-setupManualEntryButton();
-// Setup button event listeners
-setupButtonEventListeners();
-// Enable auto-backup by default
-if (localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) === null) {
-localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, 'true');
-}
-// Setup online/offline event listeners
-window.addEventListener('online', () => {
-updateConnectionStatus();
-// Try auto-backup when connection is restored
-tryAutoBackup();
+  preloadSuccessSound();
+  console.log("DOM fully loaded");
+  loadSessionsFromStorage();
+  checkForRecoverableSession();
+  updateHistoryView();
+  
+  // Initialize backup tab
+  updateConnectionStatus();
+  loadGitHubToken();
+  updateLastBackupTimeDisplay();
+  
+  // Setup manual entry functionality
+  setupManualEntryButton();
+  
+  // Setup button event listeners
+  setupButtonEventListeners();
+  
+  // Enable auto-backup by default
+  if (localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) === null) {
+    localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, 'true');
+  }
+  
+  // Setup online/offline event listeners
+  window.addEventListener('online', () => {
+    updateConnectionStatus();
+    // Try auto-backup when connection is restored
+    tryAutoBackup();
+  });
+  window.addEventListener('offline', updateConnectionStatus);
+  
+  // Check if ZXing is already defined
+  if (typeof ZXing !== 'undefined') {
+    console.log("ZXing is already loaded from local file");
+  } else {
+    console.log("ZXing not detected, will attempt to load");
+    loadZXing()
+      .then(() => console.log("ZXing library loaded and ready"))
+      .catch(error => {
+        console.error("Error loading ZXing:", error);
+        alert("Failed to load QR code scanning library. Please check your files and try again.");
+      });
+  }
+  
+  // Load last backup session count
+  lastBackupSessions = parseInt(localStorage.getItem(LAST_BACKUP_SESSIONS_KEY) || '0');
+  
+  // Try auto-backup if online and there are new sessions
+  if (navigator.onLine) {
+    // Use setTimeout to ensure the app is fully loaded first
+    setTimeout(() => {
+      tryAutoBackup().then(success => {
+        if (success) {
+          console.log("Initial auto-backup completed");
+        }
+      });
+    }, 2000);
+  }
+  
+  // Add beforeunload event listener to prevent accidental closing during active session
+  // This only handles scanner session - checklist module handles its own separately
+  window.addEventListener('beforeunload', handleBeforeUnload);
+  
+  // Initialize the checklist module if the elements exist
+  if (document.getElementById('startChecklistSessionBtn')) {
+    initializeChecklistModule();
+  }
 });
-window.addEventListener('offline', updateConnectionStatus);
-// Check if ZXing is already defined (from the script tag in HTML)
-if (typeof ZXing !== 'undefined') {
-console.log("ZXing is already loaded from local file");
-zxingLoaded = true;
-// Initialize the ZXing codeReader
-initializeZXing();
-} else {
-console.log("ZXing not detected, will attempt to load");
-loadZXing()
-.then(() => {
-console.log("ZXing library loaded and ready");
-initializeZXing();
-})
-.catch(error => {
-console.error("Error loading ZXing:", error);
-alert("Failed to load QR code scanning library. Please check your files and try again.");
-});
-}
-// Load last backup session count
-lastBackupSessions = parseInt(localStorage.getItem(LAST_BACKUP_SESSIONS_KEY) || '0');
-// Try auto-backup if online and there are new sessions
-if (navigator.onLine) {
-// Use setTimeout to ensure the app is fully loaded first
-setTimeout(() => {
-tryAutoBackup().then(success => {
-if (success) {
-console.log("Initial auto-backup completed");
-}
-});
-}, 2000);
-}
-// Add beforeunload event listener to prevent accidental closing during active session
-// This only handles scanner session - checklist module handles its own separately
-window.addEventListener('beforeunload', handleBeforeUnload);
-// Initialize the checklist module if the elements exist
-if (document.getElementById('startChecklistSessionBtn')) {
-initializeChecklistModule();
-}
-});
-// Initialize ZXing code reader
-function initializeZXing() {
-try {
-// Make sure ZXing is loaded
-if (typeof ZXing === 'undefined') {
-console.error("ZXing library not loaded");
-return;
-}
-// Create a BarcodeReader instance
-codeReader = new ZXing.BrowserMultiFormatReader();
-console.log("ZXing code reader initialized");
-zxingLoaded = true;
-} catch (error) {
-console.error("Error initializing ZXing:", error);
-alert("Failed to initialize QR code scanner. Please refresh the page and try again.");
-}
-}
+//================================================================================================================================
 // Load ZXing from local file
 function loadZXing() {
-return new Promise((resolve, reject) => {
-// Check if ZXing is already loaded
-if (typeof ZXing !== 'undefined') {
-zxingLoaded = true;
-initializeZXing();
-resolve(true);
-return;
-}
-// Create a new script element to load the local file
-const script = document.createElement('script');
-script.src = 'zxing.min.js'; // Local file path
-// Set event handlers
-script.onload = () => {
-console.log("ZXing loaded successfully from local file");
-zxingLoaded = true;
-initializeZXing();
-resolve(true);
-};
-script.onerror = (error) => {
-console.error("Failed to load local ZXing:", error);
-reject(error);
-};
-// Add the script to the document
-document.head.appendChild(script);
-});
+  return new Promise((resolve, reject) => {
+    // Check if ZXing is already loaded
+    if (typeof ZXing !== 'undefined') {
+      console.log("ZXing is already loaded");
+      resolve(true);
+      return;
+    }
+    
+    // Create a new script element to load the local file
+    const script = document.createElement('script');
+    script.src = 'zxing.min.js'; // Local file path
+    
+    // Set event handlers
+    script.onload = () => {
+      console.log("ZXing loaded successfully from local file");
+      resolve(true);
+    };
+    script.onerror = (error) => {
+      console.error("Failed to load local ZXing:", error);
+      reject(error);
+    };
+    
+    // Add the script to the document
+    document.head.appendChild(script);
+  });
 }
 //========================================================================================================== SERVICE WORKER REGISTRATION FOR PWA ========//
 if ('serviceWorker' in navigator) {
@@ -2191,162 +2178,142 @@ console.log("Session ended successfully");
 }
 // Start session button handler
 function startSessionBtnHandler() {
-// Before showing the modal, verify if ZXing is loaded
-if (!zxingLoaded) {
-loadZXing()
-.then(() => {
-sessionModal.style.display = 'block';
-locationInput.focus();
-})
-.catch(() => {
-alert("Failed to load QR scanning library. Please check if zxing.min.js is in the correct location and refresh the page.");
-});
-} else {
-sessionModal.style.display = 'block';
-locationInput.focus();
-}
+  // Before showing the modal, verify if ZXing is loaded
+  if (typeof ZXing === 'undefined') {
+    loadZXing()
+      .then(() => {
+        sessionModal.style.display = 'block';
+        locationInput.focus();
+      })
+      .catch(() => {
+        alert("Failed to load QR scanning library. Please check if zxing.min.js is in the correct location and refresh the page.");
+      });
+  } else {
+    sessionModal.style.display = 'block';
+    locationInput.focus();
+  }
 }
 //========================================================================================================== CAMERA & SCANNER FUNCTIONS ========//
 // Improved camera initialization function
 async function startCamera() {
-try {
-// Create scanner UI elements
-setupScannerUI();
-// Initialize ZXing reader if not already done
-if (!codeReader) {
-try {
-codeReader = new ZXing.BrowserMultiFormatReader();
-console.log("ZXing reader initialized");
-} catch (error) {
-console.error("Failed to initialize ZXing reader:", error);
-alert("Failed to initialize QR scanner. Please check if zxing.min.js is loaded correctly.");
-return;
-}
-}
-// Try to get camera access with optimized settings
-const constraints = {
-video: {
-facingMode: 'environment',
-width: { ideal: 1280 },
-height: { ideal: 720 },
-// OPTIMIZATION: Request additional settings for better performance
-frameRate: { ideal: 30 },       // Higher frame rate for smoother scanning
-focusMode: { ideal: "continuous" }, // Continuous auto-focus
-exposureMode: { ideal: "continuous" }, // Continuous auto-exposure
-whiteBalanceMode: { ideal: "continuous" }
-}
-};
-console.log("Requesting camera access with constraints:", constraints);
-videoStream = await navigator.mediaDevices.getUserMedia(constraints);
-console.log("Camera access granted:", videoStream);
-// Get the actual track settings
-const videoTrack = videoStream.getVideoTracks()[0];
-// OPTIMIZATION: Apply custom settings if the camera supports them
-try {
-const capabilities = videoTrack.getCapabilities();
-const settings = {};
-// Optimize focus for barcode scanning if supported
-if (capabilities.focusDistance) {
-settings.focusMode = 'manual';
-// A mid-range focus distance often works well for QR codes
-settings.focusDistance = (capabilities.focusDistance.max + capabilities.focusDistance.min) / 2;
-}
-// Optimize exposure for QR codes if supported
-if (capabilities.exposureTime) {
-// Shorter exposure time reduces blur with motion
-settings.exposureTime = capabilities.exposureTime.min * 2;
-}
-// Apply optimized settings if any
-if (Object.keys(settings).length > 0) {
-await videoTrack.applyConstraints({ advanced: [settings] });
-console.log("Applied optimized camera settings:", settings);
-}
-} catch (settingsError) {
-// Non-critical error, continue without custom settings
-console.warn("Could not apply custom camera settings:", settingsError);
-}
-// Set up video element
-video.srcObject = videoStream;
-video.setAttribute("playsinline", true);
-video.onloadedmetadata = () => {
-console.log(`Video ready: ${video.videoWidth}x${video.videoHeight}`);
-// Start batch mode automatically
-startBatchMode();
-// Start video playback
-video.play()
-.then(() => {
-console.log("Video playback started");
-scannerPlaceholder.style.display = 'none';
-video.style.display = 'block';
-// Start scanning with ZXing
-startZXingScanner();
-// Show scanning indicator
-updateScanStatus('Camera active - looking for QR codes');
-// OPTIMIZATION: Add batch mode indicator
-addScanLogEntry('Continuous & batch scanning enabled', 'info');
-})
-.catch(error => {
-console.error("Video playback failed:", error);
-alert("Failed to start video playback. Please try again.");
-});
-};
-} catch (error) {
-console.error("Camera access error:", error);
-alert(`Failed to access camera: ${error.message}. Please check camera permissions.`);
-}
-}
-// Start ZXing scanner
-function startZXingScanner() {
-if (!codeReader) {
-console.error("ZXing code reader not initialized");
-updateScanStatus('Scanner not initialized');
-return;
-}
-scanning = true;
-try {
-// Set up hints to improve scanning
-const hints = new Map();
-// Try to detect multiple QR codes in a single frame
-hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-codeReader.decodeFromVideoDevice(null, video, (result, error) => {
-if (result) {
-// Process the scanned code
-const qrCode = result.getText();
-handleQRCode({data: qrCode}, result.getResultPoints());
-// After processing one code, attempt to find more in the same frame
-// This is handled automatically by ZXing now with the TRY_HARDER hint
-}
-if (error && !(error instanceof ZXing.NotFoundException)) {
-// Only log errors that aren't just "not found" errors
-console.error("ZXing error:", error);
-updateScanStatus('Scanning error occurred');
-} else {
-// When no code is found, update the status
-if (!result) {
-updateScanStatus('Scanning... Position QR code in the frame');
-}
-}
-}, hints);
-console.log("ZXing scanner started with multi-code detection");
-} catch (error) {
-console.error("Failed to start ZXing scanner:", error);
-updateScanStatus('Failed to start scanner');
-}
+  try {
+    // Create scanner UI elements
+    setupScannerUI();
+    
+    // Try to get camera access with optimized settings
+    const constraints = {
+      video: {
+        facingMode: 'environment',
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        // OPTIMIZATION: Request additional settings for better performance
+        frameRate: { ideal: 30 },       // Higher frame rate for smoother scanning
+        focusMode: { ideal: "continuous" }, // Continuous auto-focus
+        exposureMode: { ideal: "continuous" }, // Continuous auto-exposure
+        whiteBalanceMode: { ideal: "continuous" }
+      }
+    };
+    
+    console.log("Requesting camera access with constraints:", constraints);
+    videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+    console.log("Camera access granted:", videoStream);
+    
+    // Get the actual track settings
+    const videoTrack = videoStream.getVideoTracks()[0];
+    
+    // OPTIMIZATION: Apply custom settings if the camera supports them
+    try {
+      const capabilities = videoTrack.getCapabilities();
+      const settings = {};
+      
+      // Optimize focus for barcode scanning if supported
+      if (capabilities.focusDistance) {
+        settings.focusMode = 'manual';
+        // A mid-range focus distance often works well for QR codes
+        settings.focusDistance = (capabilities.focusDistance.max + capabilities.focusDistance.min) / 2;
+      }
+      
+      // Optimize exposure for QR codes if supported
+      if (capabilities.exposureTime) {
+        // Shorter exposure time reduces blur with motion
+        settings.exposureTime = capabilities.exposureTime.min * 2;
+      }
+      
+      // Apply optimized settings if any
+      if (Object.keys(settings).length > 0) {
+        await videoTrack.applyConstraints({ advanced: [settings] });
+        console.log("Applied optimized camera settings:", settings);
+      }
+    } catch (settingsError) {
+      // Non-critical error, continue without custom settings
+      console.warn("Could not apply custom camera settings:", settingsError);
+    }
+    
+    // Set up video element
+    video.srcObject = videoStream;
+    video.setAttribute("playsinline", true);
+    
+    video.onloadedmetadata = () => {
+      console.log(`Video ready: ${video.videoWidth}x${video.videoHeight}`);
+      
+      // OPTIMIZATION: Set canvas dimensions to match video
+      canvasElement.width = video.videoWidth;
+      canvasElement.height = video.videoHeight;
+      
+      // OPTIMIZATION: Improve rendering performance
+      canvas.imageSmoothingEnabled = false; // Disable anti-aliasing for better QR detection
+      
+      // Start batch mode automatically
+      startBatchMode();
+      
+      // Start video playback
+      video.play()
+        .then(() => {
+          console.log("Video playback started");
+          scannerPlaceholder.style.display = 'none';
+          video.style.display = 'block';
+          
+          // Ensure ZXing is loaded before starting scanning
+          if (typeof ZXing === 'undefined') {
+            loadZXing()
+              .then(() => {
+                // Start scanning
+                scanning = true;
+                requestAnimationFrame(scanQRCode);
+                // Show scanning indicator
+                updateScanStatus('Camera active - looking for QR codes');
+                // OPTIMIZATION: Add batch mode indicator
+                addScanLogEntry('Continuous & batch scanning enabled', 'info');
+              })
+              .catch(error => {
+                console.error("Failed to load ZXing:", error);
+                updateScanStatus('Error: Failed to load ZXing library');
+              });
+          } else {
+            // Start scanning
+            scanning = true;
+            requestAnimationFrame(scanQRCode);
+            // Show scanning indicator
+            updateScanStatus('Camera active - looking for QR codes');
+            // OPTIMIZATION: Add batch mode indicator
+            addScanLogEntry('Continuous & batch scanning enabled', 'info');
+          }
+        })
+        .catch(error => {
+          console.error("Video playback failed:", error);
+          alert("Failed to start video playback. Please try again.");
+        });
+    };
+  } catch (error) {
+    console.error("Camera access error:", error);
+    alert(`Failed to access camera: ${error.message}. Please check camera permissions.`);
+  }
 }
 // Stop the scanner and release camera resources
 function stopScanner() {
 console.log("Stopping scanner...");
 // Stop scanning loop
 scanning = false;
-// Stop the ZXing code reader if it exists
-if (codeReader) {
-try {
-codeReader.reset();
-console.log("ZXing scanner reset");
-} catch (error) {
-console.error("Error resetting ZXing scanner:", error);
-}
-}
 // Stop the video stream if it exists
 if (videoStream) {
 videoStream.getTracks().forEach(track => {
@@ -2468,7 +2435,7 @@ scanLog.removeChild(scanLog.children[1]); // Keep the header
 }
 }
 // Highlight QR code when found
-function highlightQR(points) {
+function highlightQR(location) {
 const frame = document.getElementById('scan-frame');
 if (frame) {
 frame.style.borderColor = '#FF3B58';
@@ -2500,50 +2467,229 @@ statusEl.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';  // Default color
 }
 // QR code scanning function 
 function scanQRCode() {
-//
+  if (!scanning) return;
+  
+  if (video.readyState === video.HAVE_ENOUGH_DATA) {
+    try {
+      // Draw the video frame to the canvas
+      canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+      
+      // Get image data from the canvas
+      const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+      
+      // Check if we have valid image data
+      if (imageData.data.length === 0 || imageData.width === 0 || imageData.height === 0) {
+        console.error("Invalid image data");
+        updateScanStatus('Error: Invalid image data');
+        requestAnimationFrame(scanQRCode);
+        return;
+      }
+      
+      // Verify ZXing is available
+      if (typeof ZXing === 'undefined') {
+        console.error("ZXing is not available");
+        updateScanStatus('QR scanner not loaded correctly');
+        loadZXing().catch(err => console.error("Failed to reload ZXing:", err));
+        requestAnimationFrame(scanQRCode);
+        return;
+      }
+      
+      // Process QR codes with ZXing
+      try {
+        // Create ZXing HTML5 BarcodeReader
+        const reader = new ZXing.BrowserMultiFormatReader();
+        
+        // Convert canvas to ImageData for ZXing
+        const hints = new Map();
+        hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.QR_CODE]);
+        
+        // Create a Uint8ClampedArray from the canvas data
+        const luminanceSource = new ZXing.HTMLCanvasElementLuminanceSource(canvasElement);
+        const binaryBitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminanceSource));
+        
+        try {
+          // Try to decode multiple barcodes
+          const results = reader.decodeMultiple(binaryBitmap, hints);
+          
+          if (results && results.length > 0) {
+            // Process each detected code
+            results.forEach(result => {
+              if (result && result.getText()) {
+                handleQRCode({
+                  data: result.getText(),
+                  location: result.getResultPoints() // ZXing result points
+                });
+              }
+            });
+          } else {
+            // Try to decode at least one barcode
+            const result = reader.decode(binaryBitmap, hints);
+            
+            if (result && result.getText()) {
+              handleQRCode({
+                data: result.getText(),
+                location: result.getResultPoints() // ZXing result points
+              });
+            } else {
+              // No QR code found in this frame
+              updateScanStatus('Scanning... Position QR code in the frame');
+            }
+          }
+        } catch (decodeError) {
+          // No codes found, just continue scanning
+          updateScanStatus('Scanning... Position QR code in the frame');
+        }
+      } catch (qrError) {
+        console.error("ZXing processing error:", qrError);
+        updateScanStatus('QR processing error: ' + qrError.message);
+      }
+    } catch (error) {
+      console.error("Error in scan process:", error);
+      updateScanStatus('Error in scan process: ' + error.message);
+    }
+  } else {
+    updateScanStatus('Waiting for camera...');
+  }
+  
+  // Continue scanning - OPTIMIZATION: Use faster refresh rate for smoother scanning
+  setTimeout(() => requestAnimationFrame(scanQRCode), 10);
+}
 // Helper function to handle detected QR codes
-function handleQRCode(code, points) {
-// For ZXing, code.data is passed as the data field of an object
-const qrCodeData = code.data;
-if (!qrCodeData || qrCodeData.trim() === '') {
-return;
-}
-// Check if this code is already in our session
-const alreadyScannedInSession = activeSession.scans.some(scan => scan.content === qrCodeData);
-// Check if this code was recently scanned (to prevent rapid duplicates)
-if (!lastScannedCodes.has(qrCodeData) && !alreadyScannedInSession) {
-// Add to recent scans set and set timeout to remove
-lastScannedCodes.add(qrCodeData);
-setTimeout(() => {
-lastScannedCodes.delete(qrCodeData);
-}, 3000); // Prevent duplicate scans for 3 seconds
-// Highlight the QR code
-highlightQR(points);
-if (batchModeActive) {
-// Add to batch buffer
-if (!batchBuffer.has(qrCodeData)) {
-batchBuffer.add(qrCodeData);
-updateBatchIndicator();
-// Visual feedback
-updateScanStatus(`Added to batch: ${qrCodeData.substring(0, 20)}${qrCodeData.length > 20 ? '...' : ''}`);
-addScanLogEntry(`Queued: ${qrCodeData.substring(0, 15)}${qrCodeData.length > 15 ? '...' : ''}`, 'info');
-// Play a shorter sound for batch additions
-playSuccessSound();
-}
-} else {
-// Process immediately if not in batch mode
-playSuccessSound();
-processScannedCode(qrCodeData);
-}
-} else if (alreadyScannedInSession) {
-// Already in session
-updateScanStatus(`Already scanned: ${qrCodeData.substring(0, 20)}${qrCodeData.length > 20 ? '...' : ''}`);
-} else {
-// Recent duplicate
-updateScanStatus(`Duplicate scan: ${qrCodeData.substring(0, 20)}${qrCodeData.length > 20 ? '...' : ''}`);
-}
+function handleQRCode(code) {
+  if (!code.data || code.data.trim() === '') {
+    return;
+  }
+  
+  // Check if this code is already in our session
+  const alreadyScannedInSession = activeSession.scans.some(scan => scan.content === code.data);
+  
+  // Check if this code was recently scanned (to prevent rapid duplicates)
+  if (!lastScannedCodes.has(code.data) && !alreadyScannedInSession) {
+    // Add to recent scans set and set timeout to remove
+    lastScannedCodes.add(code.data);
+    setTimeout(() => {
+      lastScannedCodes.delete(code.data);
+    }, 3000); // Prevent duplicate scans for 3 seconds
+    
+    // Highlight the QR code
+    highlightQR(code.location);
+    
+    if (batchModeActive) {
+      // Add to batch buffer
+      if (!batchBuffer.has(code.data)) {
+        batchBuffer.add(code.data);
+        updateBatchIndicator();
+        // Visual feedback
+        updateScanStatus(`Added to batch: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
+        addScanLogEntry(`Queued: ${code.data.substring(0, 15)}${code.data.length > 15 ? '...' : ''}`, 'info');
+        // Play a shorter sound for batch additions
+        playSuccessSound();
+      }
+    } else {
+      // Process immediately if not in batch mode
+      playSuccessSound();
+      processScannedCode(code.data);
+    }
+  } else if (alreadyScannedInSession) {
+    // Already in session
+    updateScanStatus(`Already scanned: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
+  } else {
+    // Recent duplicate
+    updateScanStatus(`Duplicate scan: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
+  }
 }
 // OPTIMIZATION: Simple detection of dark regions that might contain QR codes
+function detectPotentialQRRegions(imageData) {
+// This is a simplified version - a real implementation would be more sophisticated
+const regions = [];
+const blockSize = 20;
+const threshold = 100;
+for (let y = 0; y < imageData.height; y += blockSize) {
+for (let x = 0; x < imageData.width; x += blockSize) {
+if (isDarkRegion(imageData, x, y, blockSize, threshold)) {
+regions.push({
+x: Math.max(0, x - blockSize),
+y: Math.max(0, y - blockSize),
+width: blockSize * 3,
+height: blockSize * 3
+});
+}
+}
+}
+return regions;
+}
+// Helper to check if a region is dark (potential QR code)
+function isDarkRegion(imageData, startX, startY, size, threshold) {
+const endX = Math.min(startX + size, imageData.width);
+const endY = Math.min(startY + size, imageData.height);
+let darkPixels = 0;
+let totalPixels = 0;
+for (let y = startY; y < endY; y++) {
+for (let x = startX; x < endX; x++) {
+const idx = (y * imageData.width + x) * 4;
+const r = imageData.data[idx];
+const g = imageData.data[idx + 1];
+const b = imageData.data[idx + 2];
+const avg = (r + g + b) / 3;
+if (avg < threshold) {
+darkPixels++;
+}
+totalPixels++;
+}
+}
+return (darkPixels / totalPixels) > 0.5;
+}
+// Helper to check if two regions overlap
+function isOverlapping(region1, location) {
+if (!location) return false;
+// Convert QR location points to a bounding box
+const qrPoints = [location.topLeftCorner, location.topRightCorner, 
+location.bottomRightCorner, location.bottomLeftCorner];
+let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
+for (const point of qrPoints) {
+minX = Math.min(minX, point.x);
+minY = Math.min(minY, point.y);
+maxX = Math.max(maxX, point.x);
+maxY = Math.max(maxY, point.y);
+}
+const qrBox = {
+x: minX,
+y: minY,
+width: maxX - minX,
+height: maxY - minY
+};
+// Check if the regions overlap
+return !(
+region1.x + region1.width < qrBox.x ||
+qrBox.x + qrBox.width < region1.x ||
+region1.y + region1.height < qrBox.y ||
+qrBox.y + qrBox.height < region1.y
+);
+}
+// Helper to extract region data for processing
+function extractRegionData(imageData, region) {
+const canvas = document.createElement('canvas');
+const ctx = canvas.getContext('2d');
+// Ensure we don't exceed image boundaries
+const width = Math.min(region.width, imageData.width - region.x);
+const height = Math.min(region.height, imageData.height - region.y);
+canvas.width = width;
+canvas.height = height;
+// Create a new ImageData object for the region
+const regionImgData = ctx.createImageData(width, height);
+// Copy pixel data
+for (let y = 0; y < height; y++) {
+for (let x = 0; x < width; x++) {
+const sourceIdx = ((region.y + y) * imageData.width + (region.x + x)) * 4;
+const destIdx = (y * width + x) * 4;
+regionImgData.data[destIdx] = imageData.data[sourceIdx];
+regionImgData.data[destIdx + 1] = imageData.data[sourceIdx + 1];
+regionImgData.data[destIdx + 2] = imageData.data[sourceIdx + 2];
+regionImgData.data[destIdx + 3] = imageData.data[sourceIdx + 3];
+}
+}
+return regionImgData;
+}
 // Function to start batch mode (call this after starting the camera)
 function startBatchMode() {
 if (batchProcessingInterval) {
@@ -2670,7 +2816,7 @@ saveSessionsToStorage();
 // Add to scan log
 addScanLogEntry(`Saved: ${data.substring(0, 15)}${data.length > 15 ? '...' : ''}`, 'success');
 }
-// End current scanning session
+// End current scanning session - Renamed from stopScanner
 function endScanningSession() {
 // Stop batch mode if active
 if (batchModeActive) {
@@ -2680,15 +2826,6 @@ if (scanning) {
 scanning = false;
 // Stop auto-save
 stopAutoSave();
-// Stop ZXing scanner
-if (codeReader) {
-try {
-codeReader.reset();
-console.log("ZXing scanner reset");
-} catch (error) {
-console.error("Error resetting ZXing scanner:", error);
-}
-}
 // Stop camera
 if (videoStream) {
 videoStream.getTracks().forEach(track => track.stop());
@@ -2729,46 +2866,20 @@ activeSession = null;
 }
 // Handler for start session button
 function startSessionBtnHandler() {
-// Check if ZXing is loaded
-try {
-if (typeof ZXing === 'undefined') {
-loadZXing()
-.then(() => {
-sessionModal.style.display = 'block';
-locationInput.focus();
-})
-.catch((error) => {
-console.error("Failed to load ZXing:", error);
-alert("Failed to load QR scanning library. Please check if zxing.min.js is in the correct location and refresh the page.");
-});
-} else {
-sessionModal.style.display = 'block';
-locationInput.focus();
-}
-} catch (error) {
-console.error("Error checking ZXing:", error);
-alert("Failed to check if ZXing is loaded. Please refresh the page and try again.");
-}
-}
-// Helper function to load ZXing (you'll need to add this)
-function loadZXing() {
-return new Promise((resolve, reject) => {
-if (typeof ZXing !== 'undefined') {
-resolve();
-return;
-}
-const script = document.createElement('script');
-script.src = 'zxing.min.js'; // Adjust path as needed
-script.onload = () => {
-console.log("ZXing library loaded successfully");
-resolve();
-};
-script.onerror = () => {
-console.error("Failed to load ZXing library");
-reject(new Error("Failed to load ZXing library"));
-};
-document.head.appendChild(script);
-});
+  // Before showing the modal, verify if ZXing is loaded
+  if (typeof ZXing === 'undefined') {
+    loadZXing()
+      .then(() => {
+        sessionModal.style.display = 'block';
+        locationInput.focus();
+      })
+      .catch(() => {
+        alert("Failed to load QR scanning library. Please check if zxing.min.js is in the correct location and refresh the page.");
+      });
+  } else {
+    sessionModal.style.display = 'block';
+    locationInput.focus();
+  }
 }
 // Export all history to Excel
 exportAllBtn.addEventListener('click', () => {
