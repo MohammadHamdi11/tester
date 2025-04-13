@@ -215,9 +215,3 @@ resolve();
 }
 // Log service worker lifecycle events for easier debugging
 console.log('[Service Worker] Service Worker registered');
-// Connection Status
-self.addEventListener('message', (event) => {
-  if (event.data.type === 'NETWORK_STATUS') {
-    // Handle network status changes
-  }
-});

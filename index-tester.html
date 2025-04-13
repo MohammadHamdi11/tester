@@ -203,51 +203,6 @@ max-height: 500px; /* Adjust based on content size */
 .signin-contact-info hr {
 margin: 10px 0;
 }
-/* Backup Alert Styles */
-.backup-alert {
-margin: 10px 0 15px 0;
-padding: 12px 15px;
-border-radius: var(--border-radius);
-font-weight: 500;
-box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
-text-align: center;
-position: relative;
-overflow: hidden;
-}
-.backup-alert.online {
-background-color: rgba(76, 175, 80, 0.1);
-border-left: 4px solid #4caf50;
-color: #2e7d32;
-}
-.backup-alert.offline {
-background-color: rgba(244, 67, 54, 0.1);
-border-left: 4px solid #f44336;
-color: #c62828;
-}
-/* iOS-specific alert styles */
-.ios-alert {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    z-index: 98 !important;
-    position: relative !important;
-    margin: 10px 0 !important;
-    padding: 12px 15px !important;
-    border-radius: 8px !important;
-    font-weight: 500 !important;
-    box-shadow: 0 0 8px rgba(0, 0, 0, 0.1) !important;
-    -webkit-appearance: none !important;
-}
-
-/* Make sure alerts are visible on iOS Safari */
-@supports (-webkit-touch-callout: none) {
-    .backup-alert {
-        display: block !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        margin: 10px 0 !important;
-    }
-}
 /* Card Styles */
 .card {
 background-color: var(--card-bg);
@@ -801,12 +756,7 @@ max-height: 250px;
 <div class="tab" data-tab="about">About</div>
 <div class="tab" data-tab="contact">Contact</div>
 </div>
-<!-- Scanner Tab -->
 <div id="scanner" class="tab-content active">
-<!-- Backup alert at the top -->
-<div id="scanner-backup-alert" class="backup-alert">
-<div id="scanner-backup-alert-message">Checking connection status...</div>
-</div>
 <div class="card">
 <h2>QR Code Scanner</h2>
 <div class="flex-between">
@@ -842,12 +792,7 @@ max-height: 250px;
 </div>
 </div>
 </div>
-<!-- Selector (Checklist) Tab -->
 <div id="checklist" class="tab-content">
-<!-- Backup alert at the top -->
-<div id="checklist-backup-alert" class="backup-alert">
-<div id="checklist-backup-alert-message">Checking connection status...</div>
-</div>
 <div class="card">
 <h2>Student Selector</h2>
 <div class="flex-between">
@@ -889,12 +834,7 @@ max-height: 250px;
 </div>
 </div>
 </div>
-<!-- History Tab -->
 <div id="history" class="tab-content">
-<!-- Backup alert at the top -->
-<div id="history-backup-alert" class="backup-alert">
-<div id="history-backup-alert-message">Checking connection status...</div>
-</div>
 <div class="card">
 <h2>Scanning History</h2>
 <div class="flex-between">
@@ -938,12 +878,7 @@ max-height: 250px;
 </div>
 </div>
 </div>
-<!-- Backup Tab -->
 <div id="backup" class="tab-content">
-<!-- Backup alert at the top -->
-<div id="backup-alert" class="backup-alert">
-<div id="backup-alert-message">Checking connection status...</div>
-</div>
 <div class="card">
 <h2>Backup Controls</h2>
 <div class="backup-status">
@@ -1077,7 +1012,7 @@ max-height: 250px;
 </div>
 </div>
 <!-- Script for QR Code Scanning -->
-<script src="https://unpkg.com/@zxing/library@latest"></script>
+<script src="zxing.min.js"></script>
 <!-- Script for Excel Export -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
@@ -1229,129 +1164,25 @@ let batchProcessingInterval = null; // Interval for batch processing
 //========================================================================================================== GITHUB BACKUP FUNCTIONS ========//
 // Check internet connection status
 function updateConnectionStatus() {
-    const connectionStatus = document.getElementById('connectionStatus');
-    // Get all alert elements
-    const alertIds = [
-        'scanner-backup-alert',
-        'checklist-backup-alert', 
-        'history-backup-alert',
-        'backup-alert'
-    ];
-    const messageIds = [
-        'scanner-backup-alert-message',
-        'checklist-backup-alert-message',
-        'history-backup-alert-message',
-        'backup-alert-message'
-    ];
-    
-    // Force visibility on alerts
-    alertIds.forEach(id => {
-        const alert = document.getElementById(id);
-        if (alert) {
-            alert.style.display = 'block';
-            alert.style.visibility = 'visible';
-            alert.style.opacity = '1';
-            
-            // iOS-specific fix: add !important inline
-            if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-                alert.setAttribute('style', 'display: block !important; visibility: visible !important; opacity: 1 !important;');
-            }
-        }
-    });
-    
-    if (navigator.onLine) {
-        // Online status
-        if (connectionStatus) {
-            connectionStatus.textContent = 'Online';
-            connectionStatus.style.color = '#4caf50'; // Green
-            connectionStatus.style.fontWeight = 'bold';
-        }
-        
-        // Update all alerts for online status
-        alertIds.forEach(id => {
-            const alert = document.getElementById(id);
-            if (alert) {
-                alert.classList.remove('offline');
-                alert.classList.add('online');
-                // Force a reflow to restart animation for iOS
-                void alert.offsetWidth;
-            }
-        });
-        
-        messageIds.forEach(id => {
-            const message = document.getElementById(id);
-            if (message) {
-                message.textContent = "You are connected to the internet. Backups will occur automatically.";
-            }
-        });
-        
-        // Update auto-backup status display if element exists
-        if (typeof autoBackupStatus !== 'undefined' && autoBackupStatus) {
-            const autoBackupEnabled = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) !== 'false';
-            autoBackupStatus.textContent = autoBackupEnabled ? 'Enabled' : 'Disabled';
-            autoBackupStatus.style.color = autoBackupEnabled ? '#4caf50' : '#f44336';
-        }
-    } else {
-        // Offline status
-        if (connectionStatus) {
-            connectionStatus.textContent = 'Offline';
-            connectionStatus.style.color = '#f44336'; // Red
-            connectionStatus.style.fontWeight = 'bold';
-        }
-        
-        // Update all alerts for offline status
-        alertIds.forEach(id => {
-            const alert = document.getElementById(id);
-            if (alert) {
-                alert.classList.remove('online');
-                alert.classList.add('offline');
-                // Force a reflow to restart animation for iOS
-                void alert.offsetWidth;
-            }
-        });
-        
-        messageIds.forEach(id => {
-            const message = document.getElementById(id);
-            if (message) {
-                message.textContent = "You are offline, don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.";
-            }
-        });
-        
-        if (typeof autoBackupStatus !== 'undefined' && autoBackupStatus) {
-            autoBackupStatus.textContent = 'Unavailable (Offline)';
-            autoBackupStatus.style.color = '#f44336';
-        }
-    }
-    
-    // Force visual update by toggling a class
-    alertIds.forEach(id => {
-        const alert = document.getElementById(id);
-        if (alert) {
-            alert.classList.add('updating');
-            setTimeout(() => alert.classList.remove('updating'), 50);
-        }
-    });
+if (navigator.onLine) {
+connectionStatus.textContent = 'Online';
+connectionStatus.style.color = '#4caf50'; // Green
+connectionStatus.style.fontWeight = 'bold';
+// Update auto-backup status display if element exists
+if (autoBackupStatus) {
+const autoBackupEnabled = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) !== 'false';
+autoBackupStatus.textContent = autoBackupEnabled ? 'Enabled' : 'Disabled';
+autoBackupStatus.style.color = autoBackupEnabled ? '#4caf50' : '#f44336';
 }
-function ensureAlertsVisibility() {
-    const alertIds = [
-        'scanner-backup-alert',
-        'checklist-backup-alert', 
-        'history-backup-alert',
-        'backup-alert'
-    ];
-    
-    // Force alerts to be visible
-    alertIds.forEach(id => {
-        const alert = document.getElementById(id);
-        if (alert) {
-            // Force visibility with !important for iOS
-            if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-                alert.setAttribute('style', 'display: block !important; visibility: visible !important; opacity: 1 !important;');
-            } else {
-                alert.style.display = 'block';
-            }
-        }
-    });
+} else {
+connectionStatus.textContent = 'Offline';
+connectionStatus.style.color = '#f44336'; // Red
+connectionStatus.style.fontWeight = 'bold';
+if (autoBackupStatus) {
+autoBackupStatus.textContent = 'Unavailable (Offline)';
+autoBackupStatus.style.color = '#f44336';
+}
+}
 }
 // Get GitHub token by combining prefix and suffix
 function getGitHubToken() {
@@ -1883,25 +1714,13 @@ console.log(`Token format check:
 `);
 return true;
 }
-// Ensure the status is updated on page load and when connectivity changes
-document.addEventListener('DOMContentLoaded', function() {
-updateConnectionStatus();
-// Setup online/offline event listeners
-window.addEventListener('online', updateConnectionStatus);
-window.addEventListener('offline', updateConnectionStatus);
-});
 //========================================================================================================== INITIALIZATION ========//
-// Check if jsQR is already loaded from the local file
 document.addEventListener('DOMContentLoaded', function() {
 preloadSuccessSound();
 console.log("DOM fully loaded");
 loadSessionsFromStorage();
 checkForRecoverableSession();
 updateHistoryView();
-// Initialize the alerts
-initializeAlerts();
-    // Run periodic check for alert visibility
-    setInterval(ensureAlertsVisibility, 5000);
 // Initialize backup tab
 updateConnectionStatus();
 loadGitHubToken();
@@ -1921,16 +1740,15 @@ updateConnectionStatus();
 tryAutoBackup();
 });
 window.addEventListener('offline', updateConnectionStatus);
-// Check if jsQR is already defined (from the script tag in HTML)
-if (typeof jsQR === 'function') {
-console.log("jsQR is already loaded from local file");
-jsQRLoaded = true;
+// Check if ZXing is already defined
+if (typeof ZXing !== 'undefined') {
+console.log("ZXing is already loaded from local file");
 } else {
-console.log("jsQR not detected, will attempt to load");
-loadJsQR()
-.then(() => console.log("jsQR library loaded and ready"))
+console.log("ZXing not detected, will attempt to load");
+loadZXing()
+.then(() => console.log("ZXing library loaded and ready"))
 .catch(error => {
-console.error("Error loading jsQR:", error);
+console.error("Error loading ZXing:", error);
 alert("Failed to load QR code scanning library. Please check your files and try again.");
 });
 }
@@ -1955,56 +1773,35 @@ if (document.getElementById('startChecklistSessionBtn')) {
 initializeChecklistModule();
 }
 });
-function initializeAlerts() {
-    const alertIds = [
-        'scanner-backup-alert',
-        'checklist-backup-alert', 
-        'history-backup-alert',
-        'backup-alert'
-    ];
-    
-    alertIds.forEach(id => {
-        const alert = document.getElementById(id);
-        if (alert) {
-            // Force display block and visibility
-            alert.style.display = 'block';
-            alert.style.visibility = 'visible';
-            alert.style.opacity = '1';
-            
-            // Add iOS-specific class
-            if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-                alert.classList.add('ios-alert');
-            }
-        }
-    });
-    
-    // Update connection status immediately
-    updateConnectionStatus();
-    
-    // Then set up a periodic refresh
-    setInterval(updateConnectionStatus, 10000); // Check every 10 seconds
-}
 //================================================================================================================================
-// Load jsQR from local file
-function loadJsQR() {
+// Load ZXing from local file
+function loadZXing() {
 return new Promise((resolve, reject) => {
-// Check if jsQR is already loaded
-if (typeof jsQR === 'function') {
-jsQRLoaded = true;
+// Check if ZXing is already loaded
+if (typeof ZXing !== 'undefined') {
+console.log("ZXing is already loaded");
 resolve(true);
 return;
 }
 // Create a new script element to load the local file
 const script = document.createElement('script');
-script.src = 'jsQR.min.js'; // Local file path
+script.src = 'zxing.min.js'; // Local file path
 // Set event handlers
 script.onload = () => {
-console.log("jsQR loaded successfully from local file");
-jsQRLoaded = true;
+console.log("ZXing loaded successfully from local file");
+// Add a small delay to ensure the library is initialized
+setTimeout(() => {
+if (typeof ZXing !== 'undefined') {
+console.log("ZXing verified as loaded and ready");
 resolve(true);
+} else {
+console.error("ZXing failed to initialize properly");
+reject(new Error("ZXing failed to initialize"));
+}
+}, 500);
 };
 script.onerror = (error) => {
-console.error("Failed to load local jsQR:", error);
+console.error("Failed to load local ZXing:", error);
 reject(error);
 };
 // Add the script to the document
@@ -2377,15 +2174,15 @@ console.log("Session ended successfully");
 }
 // Start session button handler
 function startSessionBtnHandler() {
-// Before showing the modal, verify if jsQR is loaded
-if (!jsQRLoaded) {
-loadJsQR()
+// Before showing the modal, verify if ZXing is loaded
+if (typeof ZXing === 'undefined') {
+loadZXing()
 .then(() => {
 sessionModal.style.display = 'block';
 locationInput.focus();
 })
 .catch(() => {
-alert("Failed to load QR scanning library. Please check if jsQR.min.js is in the correct location and refresh the page.");
+alert("Failed to load QR scanning library. Please check if zxing.min.js is in the correct location and refresh the page.");
 });
 } else {
 sessionModal.style.display = 'block';
@@ -2393,7 +2190,6 @@ locationInput.focus();
 }
 }
 //========================================================================================================== CAMERA & SCANNER FUNCTIONS ========//
-// Improved camera initialization function
 // Improved camera initialization function
 async function startCamera() {
 try {
@@ -2459,6 +2255,10 @@ video.play()
 console.log("Video playback started");
 scannerPlaceholder.style.display = 'none';
 video.style.display = 'block';
+// Ensure ZXing is loaded before starting scanning
+if (typeof ZXing === 'undefined') {
+loadZXing()
+.then(() => {
 // Start scanning
 scanning = true;
 requestAnimationFrame(scanQRCode);
@@ -2466,6 +2266,20 @@ requestAnimationFrame(scanQRCode);
 updateScanStatus('Camera active - looking for QR codes');
 // OPTIMIZATION: Add batch mode indicator
 addScanLogEntry('Continuous & batch scanning enabled', 'info');
+})
+.catch(error => {
+console.error("Failed to load ZXing:", error);
+updateScanStatus('Error: Failed to load ZXing library');
+});
+} else {
+// Start scanning
+scanning = true;
+requestAnimationFrame(scanQRCode);
+// Show scanning indicator
+updateScanStatus('Camera active - looking for QR codes');
+// OPTIMIZATION: Add batch mode indicator
+addScanLogEntry('Continuous & batch scanning enabled', 'info');
+}
 })
 .catch(error => {
 console.error("Video playback failed:", error);
@@ -2633,67 +2447,55 @@ statusEl.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';  // Default color
 }
 }
 }
-// QR code scanning function 
+// QR code scanning function - Alternative implementation
 function scanQRCode() {
 if (!scanning) return;
 if (video.readyState === video.HAVE_ENOUGH_DATA) {
 try {
 // Draw the video frame to the canvas
 canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
-// Get image data from the canvas
-const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
-// Check if we have valid image data
-if (imageData.data.length === 0 || imageData.width === 0 || imageData.height === 0) {
-console.error("Invalid image data");
-updateScanStatus('Error: Invalid image data');
-requestAnimationFrame(scanQRCode);
-return;
-}
-// Verify jsQR is available
-if (typeof jsQR !== 'function') {
-console.error("jsQR is not available. Current value:", jsQR);
+// Verify ZXing is available
+if (typeof ZXing === 'undefined') {
+console.error("ZXing is not available");
 updateScanStatus('QR scanner not loaded correctly');
-loadJsQR().catch(err => console.error("Failed to reload jsQR:", err));
+loadZXing().catch(err => console.error("Failed to reload ZXing:", err));
 requestAnimationFrame(scanQRCode);
 return;
 }
-// Process multiple QR codes at once (new feature)
+// Get image data
+const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+const width = imageData.width;
+const height = imageData.height;
+// Create a Uint8Array for ZXing
+const data = new Uint8ClampedArray(width * height);
+// Convert RGBA to grayscale for better QR detection
+for (let i = 0; i < height; i++) {
+for (let j = 0; j < width; j++) {
+const idx = (i * width + j) * 4;
+const r = imageData.data[idx + 0];
+const g = imageData.data[idx + 1];
+const b = imageData.data[idx + 2];
+// Convert to grayscale using standard luminance formula
+data[i * width + j] = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+}
+}
 try {
-// First try the standard method for single QR code
-const code = jsQR(imageData.data, imageData.width, imageData.height, {
-inversionAttempts: "dontInvert"
+// Use ZXing to decode QR code
+const source = new ZXing.RGBLuminanceSource(data, width, height);
+const binarizer = new ZXing.HybridBinarizer(source);
+const bitmap = new ZXing.BinaryBitmap(binarizer);
+const reader = new ZXing.QRCodeReader();
+const result = reader.decode(bitmap);
+if (result) {
+handleQRCode({
+data: result.getText(),
+location: result.getResultPoints()
 });
-if (code && code.data) {
-// Process the primary QR code
-handleQRCode(code);
-// OPTIMIZATION: Try to scan for additional QR codes in the same frame
-// This is a simplified approach - for true multi-code scanning, 
-// a more advanced library would be better
-const darkAreas = detectPotentialQRRegions(imageData);
-if (darkAreas.length > 0) {
-// Only process a reasonable number of regions to maintain performance
-const regionsToProcess = Math.min(darkAreas.length, 3);
-for (let i = 0; i < regionsToProcess; i++) {
-const region = darkAreas[i];
-// Skip the region that's likely the same as our already detected code
-if (isOverlapping(region, code.location)) continue;
-// Extract and process potential QR code
-const regionData = extractRegionData(imageData, region);
-const regionCode = jsQR(regionData.data, regionData.width, regionData.height, {
-inversionAttempts: "dontInvert"
-});
-if (regionCode && regionCode.data && regionCode.data !== code.data) {
-handleQRCode(regionCode);
+highlightQR(result.getResultPoints());
 }
-}
-}
-} else {
-// No QR code found in this frame
+} catch (notFoundError) {
+// No QR code found - this is normal, continue scanning
 updateScanStatus('Scanning... Position QR code in the frame');
-}
-} catch (qrError) {
-console.error("jsQR processing error:", qrError);
-updateScanStatus('QR processing error: ' + qrError.message);
 }
 } catch (error) {
 console.error("Error in scan process:", error);
@@ -2702,8 +2504,8 @@ updateScanStatus('Error in scan process: ' + error.message);
 } else {
 updateScanStatus('Waiting for camera...');
 }
-// Continue scanning - OPTIMIZATION: Use faster refresh rate for smoother scanning
-setTimeout(() => requestAnimationFrame(scanQRCode), 10);
+// Continue scanning
+requestAnimationFrame(scanQRCode);
 }
 // Helper function to handle detected QR codes
 function handleQRCode(code) {
@@ -3013,15 +2815,15 @@ activeSession = null;
 }
 // Handler for start session button
 function startSessionBtnHandler() {
-// Check if jsQR is loaded
-if (!jsQRLoaded) {
-loadJsQR()
+// Before showing the modal, verify if ZXing is loaded
+if (typeof ZXing === 'undefined') {
+loadZXing()
 .then(() => {
 sessionModal.style.display = 'block';
 locationInput.focus();
 })
 .catch(() => {
-alert("Failed to load QR scanning library. Please check if jsQR.min.js is in the correct location and refresh the page.");
+alert("Failed to load QR scanning library. Please check if zxing.min.js is in the correct location and refresh the page.");
 });
 } else {
 sessionModal.style.display = 'block';
