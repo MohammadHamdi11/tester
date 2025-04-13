@@ -1164,90 +1164,65 @@ let batchProcessingInterval = null; // Interval for batch processing
 //========================================================================================================== BACKUP ALERT FEATURE ========//
 // Function to create the backup alert element
 function createBackupAlertElement() {
-    // Create the alert element
-    const backupAlert = document.createElement('div');
-    backupAlert.id = 'backupAlert';
-    
-    // Apply the styles you requested
-    backupAlert.style.margin = '10px 0 15px 0';
-    backupAlert.style.padding = '12px 15px';
-    backupAlert.style.borderRadius = 'var(--border-radius)';
-    backupAlert.style.fontWeight = '500';
-    backupAlert.style.boxShadow = '0 0 8px rgba(0, 0, 0, 0.1)';
-    backupAlert.style.textAlign = 'center';
-    backupAlert.style.position = 'relative';
-    backupAlert.style.overflow = 'hidden';
-backupAlert.style.webkitOverflowScrolling = 'touch';
-backupAlert.style.webkitTapHighlightColor = 'transparent';
-backupAlert.style.webkitUserSelect = 'none';
-    
-    // Set the initial message based on connection status
-    updateBackupAlertMessage(backupAlert);
-    
-    return backupAlert;
+  const backupAlert = document.createElement('div');
+  backupAlert.id = 'backupAlert';
+  
+  // Add iOS-specific styles
+  backupAlert.style.cssText = `
+    margin: 10px 0 15px 0;
+    padding: 12px 15px;
+    border-radius: var(--border-radius);
+    font-weight: 500;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    -webkit-overflow-scrolling: touch;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+  `;
+
+  updateBackupAlertMessage(backupAlert);
+  return backupAlert;
 }
 
-// Function to update the backup alert message and styling
-function updateBackupAlertMessage(alertElement) {
-    if (!alertElement) return;
-    
-    if (navigator.onLine) {
-        // Online styles
-        alertElement.style.backgroundColor = 'rgba(76, 175, 80, 0.1)';
-        alertElement.style.borderLeft = '4px solid #4caf50';
-        alertElement.style.color = '#2e7d32';
-        alertElement.textContent = 'You are connected to the internet. Backups will occur automatically.';
-    } else {
-        // Offline styles
-        alertElement.style.backgroundColor = 'rgba(244, 67, 54, 0.1)';
-        alertElement.style.borderLeft = '4px solid #f44336';
-        alertElement.style.color = '#c62828';
-        alertElement.textContent = 'You are offline, don\'t forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.';
-    }
+// Add network status monitoring with fallback
+let networkCheckInterval;
+function startNetworkMonitoring() {
+  networkCheckInterval = setInterval(() => {
+    updateAllBackupAlerts();
+  }, 3000);
 }
 
-// Function to add backup alert to the relevant tabs
-function addBackupAlertToTabs() {
-    // Define the tab IDs where the alert should appear
-    const tabIds = ['scanner', 'selector', 'history', 'backup'];
-    
-    // Create the alert element once
-    const backupAlert = createBackupAlertElement();
-    
-    // Add the alert to each tab
-    tabIds.forEach(tabId => {
-        const tabContent = document.getElementById(tabId);
-        if (tabContent) {
-            // Create a clone of the alert for each tab
-            const alertClone = backupAlert.cloneNode(true);
-            
-            // Insert the alert at the top of the tab content
-            if (tabContent.firstChild) {
-                tabContent.insertBefore(alertClone, tabContent.firstChild);
-            } else {
-                tabContent.appendChild(alertClone);
-            }
-        }
-    });
+function stopNetworkMonitoring() {
+  clearInterval(networkCheckInterval);
 }
 
-// Function to update all backup alerts on the page
-function updateAllBackupAlerts() {
-    const alerts = document.querySelectorAll('#backupAlert');
-    alerts.forEach(alert => {
-        updateBackupAlertMessage(alert);
-    });
-}
-
-// Initialize the backup alerts when the DOM is loaded
+// Initialize with both event listeners and polling
 document.addEventListener('DOMContentLoaded', function() {
-    // Add the backup alerts to the tabs
-    addBackupAlertToTabs();
-    
-    // Update the alerts when online/offline status changes
-    window.addEventListener('online', updateAllBackupAlerts);
-    window.addEventListener('offline', updateAllBackupAlerts);
+  const observer = new MutationObserver((mutations) => {
+    if (document.querySelector('#scanner, #selector, #history, #backup')) {
+      addBackupAlertToTabs();
+      observer.disconnect();
+      startNetworkMonitoring();
+    }
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  // iOS PWA standalone detection
+  if (window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches) {
+    document.documentElement.classList.add('pwa-ios');
+    // Initial check after 1 second to account for iOS startup delay
+    setTimeout(updateAllBackupAlerts, 1000);
+  }
+
+  window.addEventListener('online', updateAllBackupAlerts, { passive: true });
+  window.addEventListener('offline', updateAllBackupAlerts, { passive: true });
 });
+
+// Add cleanup when leaving the page
+window.addEventListener('beforeunload', stopNetworkMonitoring);
 //========================================================================================================== GITHUB BACKUP FUNCTIONS ========//
 // Check internet connection status
 function updateConnectionStatus() {
