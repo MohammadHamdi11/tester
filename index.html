@@ -2192,190 +2192,104 @@ locationInput.focus();
 //========================================================================================================== CAMERA & SCANNER FUNCTIONS ========//
 // Improved camera initialization function
 async function startCamera() {
-    try {
-        // Create scanner UI elements
-        setupScannerUI();
-        
-        // Try to get camera access with optimized settings for distance
-        const constraints = {
-            video: {
-                facingMode: 'environment',
-                width: { ideal: 1920 }, // Higher resolution for better distance detection
-                height: { ideal: 1080 },
-                // OPTIMIZATION: Enhanced settings for better distance performance
-                frameRate: { ideal: 30 },
-                focusMode: { ideal: "continuous" }, 
-                exposureMode: { ideal: "continuous" },
-                whiteBalanceMode: { ideal: "continuous" }
-            }
-        };
-        console.log("Requesting camera access with constraints:", constraints);
-        videoStream = await navigator.mediaDevices.getUserMedia(constraints);
-        console.log("Camera access granted:", videoStream);
-        
-        // Get the actual track settings
-        const videoTrack = videoStream.getVideoTracks()[0];
-        
-        // ENHANCEMENT: Apply advanced settings specifically for QR code detection at distances
-        try {
-            const capabilities = videoTrack.getCapabilities();
-            const settings = {};
-            
-            console.log("Camera capabilities:", capabilities);
-            
-            // Try to get the highest resolution possible
-            if (capabilities.width && capabilities.height) {
-                settings.width = capabilities.width.max;
-                settings.height = capabilities.height.max;
-            }
-            
-            // Configure focus for better handling of distant QR codes
-            if (capabilities.focusDistance) {
-                // Start with auto-focus, then we'll adjust based on detection success
-                settings.focusMode = 'continuous';
-            }
-            
-            // Optimize exposure for QR codes if supported
-            if (capabilities.exposureMode) {
-                settings.exposureMode = 'continuous';
-                // If manual exposure is supported, start with a moderate value
-                if (capabilities.exposureTime) {
-                    const midExposure = (capabilities.exposureTime.max + capabilities.exposureTime.min) / 2;
-                    settings.exposureTime = midExposure;
-                }
-            }
-            
-            // Set zoom to minimum initially for wider view
-            if (capabilities.zoom) {
-                settings.zoom = capabilities.zoom.min;
-                // Store for later adaptive zooming
-                window.cameraZoomCapabilities = capabilities.zoom;
-                window.currentZoom = capabilities.zoom.min;
-            }
-            
-            // Apply optimized settings if any
-            if (Object.keys(settings).length > 0) {
-                await videoTrack.applyConstraints({ advanced: [settings] });
-                console.log("Applied optimized camera settings for distance handling:", settings);
-            }
-        } catch (settingsError) {
-            // Non-critical error, continue without custom settings
-            console.warn("Could not apply custom camera settings:", settingsError);
-        }
-        
-        // Set up video element
-        video.srcObject = videoStream;
-        video.setAttribute("playsinline", true);
-        video.onloadedmetadata = () => {
-            console.log(`Video ready: ${video.videoWidth}x${video.videoHeight}`);
-            // OPTIMIZATION: Set canvas dimensions to match video
-            canvasElement.width = video.videoWidth;
-            canvasElement.height = video.videoHeight;
-            // OPTIMIZATION: Improve rendering performance
-            canvas.imageSmoothingEnabled = false; // Disable anti-aliasing for better QR detection
-            
-            // Start batch mode automatically
-            startBatchMode();
-            
-            // Start video playback
-            video.play()
-            .then(() => {
-                console.log("Video playback started");
-                scannerPlaceholder.style.display = 'none';
-                video.style.display = 'block';
-                
-                // Initialize adaptive scanning variables
-                window.scanFrameCounter = 0;
-                window.lastSuccessTime = Date.now();
-                window.consecutiveFailures = 0;
-                
-                // Ensure ZXing is loaded before starting scanning
-                if (typeof ZXing === 'undefined') {
-                    loadZXing()
-                    .then(() => {
-                        // Start scanning
-                        scanning = true;
-                        requestAnimationFrame(scanQRCode);
-                        // Show scanning indicator
-                        updateScanStatus('Camera active - looking for QR codes');
-                        // OPTIMIZATION: Add batch mode indicator
-                        addScanLogEntry('Enhanced distance scanning enabled', 'info');
-                    })
-                    .catch(error => {
-                        console.error("Failed to load ZXing:", error);
-                        updateScanStatus('Error: Failed to load ZXing library');
-                    });
-                } else {
-                    // Start scanning
-                    scanning = true;
-                    requestAnimationFrame(scanQRCode);
-                    // Show scanning indicator
-                    updateScanStatus('Camera active - looking for QR codes');
-                    // OPTIMIZATION: Add batch mode indicator
-                    addScanLogEntry('Enhanced distance scanning enabled', 'info');
-                }
-                
-                // ENHANCEMENT: Set up adaptive zoom interval
-                setInterval(adjustCameraForDistanceScanning, 3000);
-            })
-            .catch(error => {
-                console.error("Video playback failed:", error);
-                alert("Failed to start video playback. Please try again.");
-            });
-        };
-    } catch (error) {
-        console.error("Camera access error:", error);
-        alert(`Failed to access camera: ${error.message}. Please check camera permissions.`);
-    }
+try {
+// Create scanner UI elements
+setupScannerUI();
+// Try to get camera access with optimized settings
+const constraints = {
+video: {
+facingMode: 'environment',
+width: { ideal: 1280 },
+height: { ideal: 720 },
+// OPTIMIZATION: Request additional settings for better performance
+frameRate: { ideal: 30 },       // Higher frame rate for smoother scanning
+focusMode: { ideal: "continuous" }, // Continuous auto-focus
+exposureMode: { ideal: "continuous" }, // Continuous auto-exposure
+whiteBalanceMode: { ideal: "continuous" }
 }
-// New function for adaptive camera adjustment based on scanning success
-async function adjustCameraForDistanceScanning() {
-    if (!scanning || !videoStream) return;
-    
-    const videoTrack = videoStream.getVideoTracks()[0];
-    if (!videoTrack) return;
-    
-    // Only adjust if we're having trouble detecting QR codes
-    if (window.consecutiveFailures > 10 || (Date.now() - window.lastSuccessTime > 5000)) {
-        try {
-            const capabilities = videoTrack.getCapabilities();
-            const currentSettings = videoTrack.getSettings();
-            
-            // Adaptive zoom cycling (gradually try different zoom levels)
-            if (capabilities.zoom && window.cameraZoomCapabilities) {
-                const min = window.cameraZoomCapabilities.min;
-                const max = window.cameraZoomCapabilities.max;
-                const step = (max - min) / 5; // 5 different zoom levels to try
-                
-                // Cycle through zoom levels
-                window.currentZoom = window.currentZoom + step;
-                if (window.currentZoom > max) {
-                    window.currentZoom = min; // Reset to minimum
-                }
-                
-                await videoTrack.applyConstraints({
-                    advanced: [{ zoom: window.currentZoom }]
-                });
-                
-                console.log(`Adjusted camera zoom to ${window.currentZoom} to improve distance scanning`);
-                addScanLogEntry(`Trying zoom level: ${Math.round(window.currentZoom * 100) / 100}x`, 'info');
-            }
-            
-            // Try adjusting focus if available and struggling
-            if (capabilities.focusDistance && window.consecutiveFailures > 20) {
-                // Toggle between continuous focus and fixed focus
-                const newFocusMode = currentSettings.focusMode === 'continuous' ? 'manual' : 'continuous';
-                
-                await videoTrack.applyConstraints({
-                    advanced: [{ focusMode: newFocusMode }]
-                });
-                
-                console.log(`Switched focus mode to ${newFocusMode} for better scanning`);
-            }
-        } catch (error) {
-            console.warn("Failed to adjust camera settings for distance:", error);
-        }
-    }
+};
+console.log("Requesting camera access with constraints:", constraints);
+videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+console.log("Camera access granted:", videoStream);
+// Get the actual track settings
+const videoTrack = videoStream.getVideoTracks()[0];
+// OPTIMIZATION: Apply custom settings if the camera supports them
+try {
+const capabilities = videoTrack.getCapabilities();
+const settings = {};
+// Optimize focus for barcode scanning if supported
+if (capabilities.focusDistance) {
+settings.focusMode = 'manual';
+// A mid-range focus distance often works well for QR codes
+settings.focusDistance = (capabilities.focusDistance.max + capabilities.focusDistance.min) / 2;
+}
+// Optimize exposure for QR codes if supported
+if (capabilities.exposureTime) {
+// Shorter exposure time reduces blur with motion
+settings.exposureTime = capabilities.exposureTime.min * 2;
+}
+// Apply optimized settings if any
+if (Object.keys(settings).length > 0) {
+await videoTrack.applyConstraints({ advanced: [settings] });
+console.log("Applied optimized camera settings:", settings);
+}
+} catch (settingsError) {
+// Non-critical error, continue without custom settings
+console.warn("Could not apply custom camera settings:", settingsError);
+}
+// Set up video element
+video.srcObject = videoStream;
+video.setAttribute("playsinline", true);
+video.onloadedmetadata = () => {
+console.log(`Video ready: ${video.videoWidth}x${video.videoHeight}`);
+// OPTIMIZATION: Set canvas dimensions to match video
+canvasElement.width = video.videoWidth;
+canvasElement.height = video.videoHeight;
+// OPTIMIZATION: Improve rendering performance
+canvas.imageSmoothingEnabled = false; // Disable anti-aliasing for better QR detection
+// Start batch mode automatically
+startBatchMode();
+// Start video playback
+video.play()
+.then(() => {
+console.log("Video playback started");
+scannerPlaceholder.style.display = 'none';
+video.style.display = 'block';
+// Ensure ZXing is loaded before starting scanning
+if (typeof ZXing === 'undefined') {
+loadZXing()
+.then(() => {
+// Start scanning
+scanning = true;
+requestAnimationFrame(scanQRCode);
+// Show scanning indicator
+updateScanStatus('Camera active - looking for QR codes');
+// OPTIMIZATION: Add batch mode indicator
+addScanLogEntry('Continuous & batch scanning enabled', 'info');
+})
+.catch(error => {
+console.error("Failed to load ZXing:", error);
+updateScanStatus('Error: Failed to load ZXing library');
+});
+} else {
+// Start scanning
+scanning = true;
+requestAnimationFrame(scanQRCode);
+// Show scanning indicator
+updateScanStatus('Camera active - looking for QR codes');
+// OPTIMIZATION: Add batch mode indicator
+addScanLogEntry('Continuous & batch scanning enabled', 'info');
+}
+})
+.catch(error => {
+console.error("Video playback failed:", error);
+alert("Failed to start video playback. Please try again.");
+});
+};
+} catch (error) {
+console.error("Camera access error:", error);
+alert(`Failed to access camera: ${error.message}. Please check camera permissions.`);
+}
 }
 // Stop the scanner and release camera resources
 function stopScanner() {
@@ -2553,432 +2467,103 @@ statusEl.style.backgroundColor = bgColor;
 }
 // QR code scanning function - Alternative implementation
 function scanQRCode() {
-    if (!scanning) return;
-    
-    // Only process frames when video is ready
-    if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        try {
-            // PERFORMANCE: Use a dynamic frame skipping based on device performance
-            if (window.scanFrameCounter === undefined) {
-                window.scanFrameCounter = 0;
-                window.lastSuccessTime = Date.now();
-                window.consecutiveFailures = 0;
-            }
-            
-            window.scanFrameCounter++;
-            
-            // Adaptive frame processing - process more frames if detection is struggling
-            const timeSinceLastSuccess = Date.now() - window.lastSuccessTime;
-            const shouldProcessFrame = (window.scanFrameCounter % 2 === 0) || 
-                                       (timeSinceLastSuccess > 3000) ||
-                                       (window.consecutiveFailures > 10);
-            
-            if (!shouldProcessFrame) {
-                requestAnimationFrame(scanQRCode);
-                return;
-            }
-            
-            // Draw the video frame to the canvas
-            canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
-            
-            // Verify ZXing is available
-            if (typeof ZXing === 'undefined') {
-                updateScanStatus('ERROR');
-                loadZXing().catch(err => console.error("Failed to reload ZXing:", err));
-                requestAnimationFrame(scanQRCode);
-                return;
-            }
-            
-            // Get image data
-            const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
-            const width = imageData.width;
-            const height = imageData.height;
-            
-            // ENHANCEMENT: Multi-pass processing for better distance handling
-            const detectedCodes = [];
-            
-            // First pass: Try with standard processing (fast)
-            tryStandardProcessing(imageData, width, height, detectedCodes);
-            
-            // If nothing found and we've been struggling, try enhanced processing
-            if (detectedCodes.length === 0 && (window.consecutiveFailures > 5 || timeSinceLastSuccess > 2000)) {
-                tryEnhancedProcessing(imageData, width, height, detectedCodes);
-            }
-            
-            // Handle detected QR codes
-            if (detectedCodes.length > 0) {
-                // Reset failure counter and update last success time
-                window.consecutiveFailures = 0;
-                window.lastSuccessTime = Date.now();
-                
-                // Draw green rectangles around all detected QR codes
-                drawQRCodeHighlights(detectedCodes);
-                
-                // Process each detected QR code
-                detectedCodes.forEach(code => {
-                    handleQRCode(code);
-                });
-            } else {
-                // No QR code found - increment failure counter
-                window.consecutiveFailures++;
-                updateScanStatus('SCANNING');
-            }
-        } catch (error) {
-            console.error("Error in scan process:", error);
-            updateScanStatus('ERROR');
-        }
-    } else {
-        updateScanStatus('WAITING');
-    }
-    
-    // Continue scanning
-    requestAnimationFrame(scanQRCode);
+if (!scanning) return;
+// Only process frames when video is ready
+if (video.readyState === video.HAVE_ENOUGH_DATA) {
+try {
+// OPTIMIZATION: Only process every other frame to reduce CPU usage
+if (window.scanFrameCounter === undefined) {
+window.scanFrameCounter = 0;
 }
-function tryStandardProcessing(imageData, width, height, detectedCodes) {
-    // Create a Uint8Array for ZXing
-    const data = new Uint8ClampedArray(width * height);
-    
-    // OPTIMIZATION: Use adaptive downsampling based on image size
-    const downsampleFactor = width > 1000 ? 2 : 1;
-    
-    // Fill data array with luminance values
-    if (downsampleFactor === 1) {
-        // No downsampling for smaller images - better for distant QR codes
-        for (let i = 0; i < height; i++) {
-            for (let j = 0; j < width; j++) {
-                const idx = (i * width + j) * 4;
-                // Better grayscale conversion (matches human eye sensitivity)
-                const gray = 0.299 * imageData.data[idx] + 0.587 * imageData.data[idx + 1] + 0.114 * imageData.data[idx + 2];
-                data[i * width + j] = gray;
-            }
-        }
-    } else {
-        // Downsampling for larger images - faster processing
-        const newWidth = Math.floor(width / downsampleFactor);
-        const newHeight = Math.floor(height / downsampleFactor);
-        for (let i = 0; i < newHeight; i++) {
-            for (let j = 0; j < newWidth; j++) {
-                const sourceI = i * downsampleFactor;
-                const sourceJ = j * downsampleFactor;
-                const idx = (sourceI * width + sourceJ) * 4;
-                const gray = 0.299 * imageData.data[idx] + 0.587 * imageData.data[idx + 1] + 0.114 * imageData.data[idx + 2];
-                data[i * newWidth + j] = gray;
-            }
-        }
-    }
-    
-    try {
-        // Use ZXing to decode QR code
-        const actualWidth = downsampleFactor === 1 ? width : Math.floor(width / downsampleFactor);
-        const actualHeight = downsampleFactor === 1 ? height : Math.floor(height / downsampleFactor);
-        
-        const source = new ZXing.RGBLuminanceSource(data, actualWidth, actualHeight);
-        const binarizer = new ZXing.HybridBinarizer(source);
-        const bitmap = new ZXing.BinaryBitmap(binarizer);
-        
-        // Try multiple formats detection first
-        try {
-            const reader = new ZXing.MultiFormatReader();
-            const hints = new Map();
-            hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-            hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.QR_CODE]);
-            
-            const results = reader.decodeMultiple(bitmap, hints);
-            if (results && results.length > 0) {
-                results.forEach(result => {
-                    // Scale back the points if we downsampled
-                    let scaledPoints = result.getResultPoints();
-                    if (downsampleFactor !== 1) {
-                        scaledPoints = scaledPoints.map(point => {
-                            return {
-                                getX: () => point.getX() * downsampleFactor,
-                                getY: () => point.getY() * downsampleFactor
-                            };
-                        });
-                    }
-                    
-                    detectedCodes.push({
-                        data: result.getText(),
-                        location: scaledPoints
-                    });
-                });
-            }
-        } catch (multiError) {
-            // Fallback to single QR code detection
-            try {
-                const qrReader = new ZXing.QRCodeReader();
-                const hints = new Map();
-                hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-                
-                const result = qrReader.decode(bitmap, hints);
-                if (result) {
-                    // Scale back the points if we downsampled
-                    let scaledPoints = result.getResultPoints();
-                    if (downsampleFactor !== 1) {
-                        scaledPoints = scaledPoints.map(point => {
-                            return {
-                                getX: () => point.getX() * downsampleFactor,
-                                getY: () => point.getY() * downsampleFactor
-                            };
-                        });
-                    }
-                    
-                    detectedCodes.push({
-                        data: result.getText(),
-                        location: scaledPoints
-                    });
-                }
-            } catch (singleError) {
-                // No QR code found - normal, will try enhanced processing if needed
-            }
-        }
-    } catch (error) {
-        console.error("Error in standard QR processing:", error);
-    }
+window.scanFrameCounter++;
+if (window.scanFrameCounter % 2 !== 0) {
+requestAnimationFrame(scanQRCode);
+return;
 }
-// Enhanced processing for difficult-to-detect QR codes (distant, angled, or poor lighting)
-function tryEnhancedProcessing(imageData, width, height, detectedCodes) {
-    try {
-        // ENHANCEMENT: Try multiple image processing approaches
-        
-        // 1. Try with contrast enhancement
-        tryWithContrastEnhancement(imageData, width, height, detectedCodes);
-        
-        // 2. If still nothing, try with region detection
-        if (detectedCodes.length === 0) {
-            tryWithRegionDetection(imageData, width, height, detectedCodes);
-        }
-        
-        // 3. If still nothing, try with edge enhancement
-        if (detectedCodes.length === 0) {
-            tryWithEdgeEnhancement(imageData, width, height, detectedCodes);
-        }
-    } catch (error) {
-        console.error("Error in enhanced processing:", error);
-    }
+// Draw the video frame to the canvas
+canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+// Verify ZXing is available
+if (typeof ZXing === 'undefined') {
+updateScanStatus('ERROR');
+loadZXing().catch(err => console.error("Failed to reload ZXing:", err));
+requestAnimationFrame(scanQRCode);
+return;
 }
-// Try with contrast enhancement - helps with distance and poor lighting
-function tryWithContrastEnhancement(imageData, width, height, detectedCodes) {
-    try {
-        // Create a temporary canvas for image processing
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = width;
-        tempCanvas.height = height;
-        const tempCtx = tempCanvas.getContext('2d');
-        
-        // Put original image data
-        const tempImgData = tempCtx.createImageData(width, height);
-        tempImgData.data.set(imageData.data);
-        
-        // Apply contrast enhancement
-        const factor = 1.5; // Contrast factor (adjust as needed)
-        const offset = 128 * (1 - factor);
-        
-        for (let i = 0; i < tempImgData.data.length; i += 4) {
-            tempImgData.data[i] = factor * (tempImgData.data[i] - 128) + 128 + offset;
-            tempImgData.data[i+1] = factor * (tempImgData.data[i+1] - 128) + 128 + offset;
-            tempImgData.data[i+2] = factor * (tempImgData.data[i+2] - 128) + 128 + offset;
-        }
-        
-        tempCtx.putImageData(tempImgData, 0, 0);
-        
-        // Get the enhanced image data
-        const enhancedImgData = tempCtx.getImageData(0, 0, width, height);
-        
-        // Try to decode from the enhanced image (using standard algorithm but without downsampling)
-        const data = new Uint8ClampedArray(width * height);
-        
-        for (let i = 0; i < height; i++) {
-            for (let j = 0; j < width; j++) {
-                const idx = (i * width + j) * 4;
-                data[i * width + j] = 0.299 * enhancedImgData.data[idx] + 0.587 * enhancedImgData.data[idx+1] + 0.114 * enhancedImgData.data[idx+2];
-            }
-        }
-        
-        const source = new ZXing.RGBLuminanceSource(data, width, height);
-        const binarizer = new ZXing.HybridBinarizer(source);
-        const bitmap = new ZXing.BinaryBitmap(binarizer);
-        
-        const hints = new Map();
-        hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-        hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.QR_CODE]);
-        
-        try {
-            const reader = new ZXing.MultiFormatReader();
-            const results = reader.decodeMultiple(bitmap, hints);
-            if (results && results.length > 0) {
-                results.forEach(result => {
-                    detectedCodes.push({
-                        data: result.getText(),
-                        location: result.getResultPoints()
-                    });
-                });
-            }
-        } catch (error) {
-            // Try single detection
-            try {
-                const qrReader = new ZXing.QRCodeReader();
-                const result = qrReader.decode(bitmap, hints);
-                if (result) {
-                    detectedCodes.push({
-                        data: result.getText(),
-                        location: result.getResultPoints()
-                    });
-                }
-            } catch (e) {
-                // No QR code found with contrast enhancement
-            }
-        }
-    } catch (error) {
-        console.error("Error in contrast enhancement:", error);
-    }
+// Get image data
+const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+const width = imageData.width;
+const height = imageData.height;
+// Create a Uint8Array for ZXing
+const data = new Uint8ClampedArray(width * height);
+// OPTIMIZATION: Downsampling - only process every other pixel
+for (let i = 0; i < height; i += 2) {
+for (let j = 0; j < width; j += 2) {
+const idx = (i * width + j) * 4;
+// Fast grayscale calculation
+const gray = (imageData.data[idx] + imageData.data[idx + 1] + imageData.data[idx + 2]) / 3;
+data[(i/2) * (width/2) + (j/2)] = gray;
 }
-// Try with region detection - better for distant QR codes
-function tryWithRegionDetection(imageData, width, height, detectedCodes) {
-    try {
-        // Detect potential QR code regions
-        const regions = detectPotentialQRRegions(imageData);
-        
-        // Process each potential region with higher resolution
-        regions.forEach(region => {
-            // Extract the region data
-            const regionData = extractRegionData(imageData, region);
-            
-            // Convert region data to ZXing format
-            const data = new Uint8ClampedArray(region.width * region.height);
-            for (let i = 0; i < region.height; i++) {
-                for (let j = 0; j < region.width; j++) {
-                    const idx = (i * region.width + j) * 4;
-                    data[i * region.width + j] = 0.299 * regionData.data[idx] + 0.587 * regionData.data[idx+1] + 0.114 * regionData.data[idx+2];
-                }
-            }
-            
-            try {
-                const source = new ZXing.RGBLuminanceSource(data, region.width, region.height);
-                const binarizer = new ZXing.HybridBinarizer(source);
-                const bitmap = new ZXing.BinaryBitmap(binarizer);
-                
-                const hints = new Map();
-                hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-                
-                const reader = new ZXing.QRCodeReader();
-                const result = reader.decode(bitmap, hints);
-                
-                if (result) {
-                    // Adjust the result points to match the full image coordinates
-                    const adjustedPoints = result.getResultPoints().map(point => {
-                        return {
-                            getX: () => point.getX() + region.x,
-                            getY: () => point.getY() + region.y
-                        };
-                    });
-                    
-                    detectedCodes.push({
-                        data: result.getText(),
-                        location: adjustedPoints
-                    });
-                }
-            } catch (error) {
-                // No QR code in this region
-            }
-        });
-    } catch (error) {
-        console.error("Error in region detection:", error);
-    }
 }
-// Try with edge enhancement - helps with distant and blurry QR codes
-function tryWithEdgeEnhancement(imageData, width, height, detectedCodes) {
-    try {
-        // Create a temporary canvas for image processing
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = width;
-        tempCanvas.height = height;
-        const tempCtx = tempCanvas.getContext('2d');
-        
-        // Put original image data
-        const tempImgData = tempCtx.createImageData(width, height);
-        tempImgData.data.set(imageData.data);
-        
-        // Apply a simple edge detection algorithm
-        const edgeData = new Uint8ClampedArray(width * height * 4);
-        
-        // Convert to grayscale first
-        const grayData = new Uint8ClampedArray(width * height);
-        for (let i = 0; i < height; i++) {
-            for (let j = 0; j < width; j++) {
-                const idx = (i * width + j) * 4;
-                grayData[i * width + j] = Math.round(0.299 * imageData.data[idx] + 0.587 * imageData.data[idx+1] + 0.114 * imageData.data[idx+2]);
-            }
-        }
-        
-        // Apply simple edge detection (Sobel operator)
-        for (let i = 1; i < height - 1; i++) {
-            for (let j = 1; j < width - 1; j++) {
-                // Horizontal gradient
-                const gx = 
-                    -1 * grayData[(i-1) * width + (j-1)] +
-                    -2 * grayData[i * width + (j-1)] +
-                    -1 * grayData[(i+1) * width + (j-1)] +
-                    1 * grayData[(i-1) * width + (j+1)] +
-                    2 * grayData[i * width + (j+1)] +
-                    1 * grayData[(i+1) * width + (j+1)];
-                
-                // Vertical gradient
-                const gy = 
-                    -1 * grayData[(i-1) * width + (j-1)] +
-                    -2 * grayData[(i-1) * width + j] +
-                    -1 * grayData[(i-1) * width + (j+1)] +
-                    1 * grayData[(i+1) * width + (j-1)] +
-                    2 * grayData[(i+1) * width + j] +
-                    1 * grayData[(i+1) * width + (j+1)];
-                
-                // Gradient magnitude
-                const mag = Math.min(255, Math.sqrt(gx*gx + gy*gy));
-                
-                // Set edge image data
-                const idx = (i * width + j) * 4;
-                edgeData[idx] = mag;
-                edgeData[idx+1] = mag;
-                edgeData[idx+2] = mag;
-                edgeData[idx+3] = 255;
-            }
-        }
-        
-        // Put edge enhanced image back
-        const edgeImgData = new ImageData(edgeData, width, height);
-        tempCtx.putImageData(edgeImgData, 0, 0);
-        
-        // Try to decode from the edge-enhanced image
-        const data = new Uint8ClampedArray(width * height);
-        for (let i = 0; i < height; i++) {
-            for (let j = 0; j < width; j++) {
-                const idx = (i * width + j) * 4;
-                data[i * width + j] = edgeData[idx]; // Already grayscale
-            }
-        }
-        
-        const source = new ZXing.RGBLuminanceSource(data, width, height);
-        const binarizer = new ZXing.HybridBinarizer(source);
-        const bitmap = new ZXing.BinaryBitmap(binarizer);
-        
-        const hints = new Map();
-        hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-        
-        try {
-            const reader = new ZXing.QRCodeReader();
-            const result = reader.decode(bitmap, hints);
-            if (result) {
-                detectedCodes.push({
-                    data: result.getText(),
-                    location: result.getResultPoints()
-                });
-            }
-        } catch (error) {
-            // No QR code found with edge enhancement
-        }
-    } catch (error) {
-        console.error("Error in edge enhancement:", error);
-    }
+try {
+// Use ZXing to decode QR code
+const source = new ZXing.RGBLuminanceSource(data, width/2, height/2);
+const binarizer = new ZXing.HybridBinarizer(source);
+const bitmap = new ZXing.BinaryBitmap(binarizer);
+const reader = new ZXing.MultiFormatReader(); // Use MultiFormatReader to detect multiple QR codes
+// Store detected QR codes
+const detectedCodes = [];
+try {
+// Try to find all QR codes in the image
+const results = reader.decodeMultiple(bitmap);
+if (results && results.length > 0) {
+results.forEach(result => {
+detectedCodes.push({
+data: result.getText(),
+location: result.getResultPoints()
+});
+});
+}
+} catch (multiError) {
+// If multiple detection fails, try single detection
+try {
+const qrReader = new ZXing.QRCodeReader();
+const result = qrReader.decode(bitmap);
+if (result) {
+detectedCodes.push({
+data: result.getText(),
+location: result.getResultPoints()
+});
+}
+} catch (singleError) {
+// No QR code found
+}
+}
+// Handle detected QR codes
+if (detectedCodes.length > 0) {
+// Draw green rectangles around all detected QR codes
+drawQRCodeHighlights(detectedCodes);
+// Process each detected QR code
+detectedCodes.forEach(code => {
+handleQRCode(code);
+});
+}
+if (detectedCodes.length === 0) {
+// No QR code found - this is normal, continue scanning
+updateScanStatus('SCANNING');
+}
+} catch (error) {
+console.error("Error in QR decoding:", error);
+updateScanStatus('ERROR');
+}
+} catch (error) {
+console.error("Error in scan process:", error);
+updateScanStatus('ERROR');
+}
+} else {
+updateScanStatus('WAITING');
+}
+// Continue scanning
+requestAnimationFrame(scanQRCode);
 }
 // New function to draw highlights around detected QR codes
 function drawQRCodeHighlights(detectedCodes) {
@@ -3013,7 +2598,7 @@ maxX = Math.min(canvasElement.width, maxX + padding);
 maxY = Math.min(canvasElement.height, maxY + padding);
 // Draw green rectangle around QR code
 canvas.strokeStyle = 'rgba(0, 255, 0, 0.7)';  // Semi-transparent green
-canvas.lineWidth = 4;
+canvas.lineWidth = 7;
 canvas.beginPath();
 canvas.rect(minX, minY, maxX - minX, maxY - minY);
 canvas.stroke();
