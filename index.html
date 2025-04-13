@@ -209,10 +209,12 @@ margin: 10px 0 15px 0;
 padding: 12px 15px;
 border-radius: var(--border-radius);
 font-weight: 500;
-animation: pulse 2s infinite;
+animation: none; /* Remove default animation */
 box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
 transition: all 0.3s ease;
 text-align: center;
+position: relative;
+overflow: hidden;
 }
 .backup-alert.online {
 background-color: rgba(76, 175, 80, 0.1);
@@ -224,18 +226,27 @@ background-color: rgba(244, 67, 54, 0.1);
 border-left: 4px solid #f44336;
 color: #c62828;
 }
-@keyframes pulse {
+/* Add a more iOS-friendly pulsing effect */
+.backup-alert::after {
+content: "";
+position: absolute;
+top: 0;
+left: 0;
+right: 0;
+bottom: 0;
+background-color: rgba(255, 255, 255, 0.2);
+opacity: 0;
+animation: ios-pulse 2s infinite;
+}
+@keyframes ios-pulse {
 0% {
-opacity: 0.8;
-transform: scale(0.98);
+opacity: 0;
 }
 50% {
-opacity: 1;
-transform: scale(1);
+opacity: 0.5;
 }
 100% {
-opacity: 0.8;
-transform: scale(0.98);
+opacity: 0;
 }
 }
 /* Card Styles */
@@ -1233,6 +1244,13 @@ const messageIds = [
 'history-backup-alert-message',
 'backup-alert-message'
 ];
+// Force visibility on alerts
+alertIds.forEach(id => {
+const alert = document.getElementById(id);
+if (alert) {
+alert.style.display = 'block';
+}
+});
 if (navigator.onLine) {
 // Online status
 if (connectionStatus) {
@@ -1246,6 +1264,8 @@ const alert = document.getElementById(id);
 if (alert) {
 alert.classList.remove('offline');
 alert.classList.add('online');
+// Force a reflow to restart animation for iOS
+void alert.offsetWidth;
 }
 });
 messageIds.forEach(id => {
@@ -1255,7 +1275,7 @@ message.textContent = "You are connected to the internet. Backups will occur aut
 }
 });
 // Update auto-backup status display if element exists
-if (autoBackupStatus) {
+if (typeof autoBackupStatus !== 'undefined' && autoBackupStatus) {
 const autoBackupEnabled = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) !== 'false';
 autoBackupStatus.textContent = autoBackupEnabled ? 'Enabled' : 'Disabled';
 autoBackupStatus.style.color = autoBackupEnabled ? '#4caf50' : '#f44336';
@@ -1273,6 +1293,8 @@ const alert = document.getElementById(id);
 if (alert) {
 alert.classList.remove('online');
 alert.classList.add('offline');
+// Force a reflow to restart animation for iOS
+void alert.offsetWidth;
 }
 });
 messageIds.forEach(id => {
@@ -1281,11 +1303,19 @@ if (message) {
 message.textContent = "You are offline, don't forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.";
 }
 });
-if (autoBackupStatus) {
+if (typeof autoBackupStatus !== 'undefined' && autoBackupStatus) {
 autoBackupStatus.textContent = 'Unavailable (Offline)';
 autoBackupStatus.style.color = '#f44336';
 }
 }
+// Force visual update by toggling a class
+alertIds.forEach(id => {
+const alert = document.getElementById(id);
+if (alert) {
+alert.classList.add('updating');
+setTimeout(() => alert.classList.remove('updating'), 50);
+}
+});
 }
 // Get GitHub token by combining prefix and suffix
 function getGitHubToken() {
@@ -1832,6 +1862,8 @@ console.log("DOM fully loaded");
 loadSessionsFromStorage();
 checkForRecoverableSession();
 updateHistoryView();
+// Initialize the alerts
+initializeAlerts();
 // Initialize backup tab
 updateConnectionStatus();
 loadGitHubToken();
@@ -1885,6 +1917,29 @@ if (document.getElementById('startChecklistSessionBtn')) {
 initializeChecklistModule();
 }
 });
+function initializeAlerts() {
+const alertIds = [
+'scanner-backup-alert',
+'checklist-backup-alert', 
+'history-backup-alert',
+'backup-alert'
+];
+alertIds.forEach(id => {
+const alert = document.getElementById(id);
+if (alert) {
+// Make sure alerts are visible
+alert.style.display = 'block';
+// Add iOS-specific styles if needed
+if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+alert.classList.add('ios-device');
+}
+}
+});
+// Update connection status immediately
+updateConnectionStatus();
+// Then set up a periodic refresh
+setInterval(updateConnectionStatus, 10000); // Check every 10 seconds
+}
 //================================================================================================================================
 // Load jsQR from local file
 function loadJsQR() {
