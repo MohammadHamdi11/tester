@@ -2195,16 +2195,15 @@ async function startCamera() {
 try {
 // Create scanner UI elements
 setupScannerUI();
-// Try to get camera access with optimized settings
+// Try to get camera access with optimized settings for QR codes
 const constraints = {
 video: {
 facingMode: 'environment',
-width: { ideal: 1280 },
-height: { ideal: 720 },
-// OPTIMIZATION: Request additional settings for better performance
-frameRate: { ideal: 30 },       // Higher frame rate for smoother scanning
-focusMode: { ideal: "continuous" }, // Continuous auto-focus
-exposureMode: { ideal: "continuous" }, // Continuous auto-exposure
+width: { ideal: 1920 }, // Higher resolution for better distance scanning
+height: { ideal: 1080 },
+frameRate: { ideal: 30 },
+focusMode: { ideal: "continuous" },
+exposureMode: { ideal: "continuous" },
 whiteBalanceMode: { ideal: "continuous" }
 }
 };
@@ -2213,25 +2212,42 @@ videoStream = await navigator.mediaDevices.getUserMedia(constraints);
 console.log("Camera access granted:", videoStream);
 // Get the actual track settings
 const videoTrack = videoStream.getVideoTracks()[0];
-// OPTIMIZATION: Apply custom settings if the camera supports them
+// Apply advanced camera settings for QR scanning
 try {
 const capabilities = videoTrack.getCapabilities();
 const settings = {};
-// Optimize focus for barcode scanning if supported
+// Request maximum resolution available
+if (capabilities.width && capabilities.height) {
+settings.width = capabilities.width.max;
+settings.height = capabilities.height.max;
+}
+// QR codes need good focus, but not too close
 if (capabilities.focusDistance) {
 settings.focusMode = 'manual';
-// A mid-range focus distance often works well for QR codes
-settings.focusDistance = (capabilities.focusDistance.max + capabilities.focusDistance.min) / 2;
+// A slightly farther focus distance works better for QR codes
+settings.focusDistance = (capabilities.focusDistance.max + capabilities.focusDistance.min * 2) / 3;
 }
-// Optimize exposure for QR codes if supported
+// Optimize exposure and brightness for QR codes
 if (capabilities.exposureTime) {
-// Shorter exposure time reduces blur with motion
-settings.exposureTime = capabilities.exposureTime.min * 2;
+// Faster exposure to reduce blur
+settings.exposureTime = capabilities.exposureTime.min * 4;
+}
+if (capabilities.brightness) {
+// Higher brightness helps with QR detection
+settings.brightness = (capabilities.brightness.max + capabilities.brightness.min) / 2;
+}
+if (capabilities.contrast) {
+// Higher contrast for better QR edges
+settings.contrast = capabilities.contrast.max * 0.8;
+}
+if (capabilities.sharpness) {
+// Maximum sharpness for better edge detection
+settings.sharpness = capabilities.sharpness.max;
 }
 // Apply optimized settings if any
 if (Object.keys(settings).length > 0) {
 await videoTrack.applyConstraints({ advanced: [settings] });
-console.log("Applied optimized camera settings:", settings);
+console.log("Applied optimized camera settings for QR scanning:", settings);
 }
 } catch (settingsError) {
 // Non-critical error, continue without custom settings
@@ -2242,11 +2258,11 @@ video.srcObject = videoStream;
 video.setAttribute("playsinline", true);
 video.onloadedmetadata = () => {
 console.log(`Video ready: ${video.videoWidth}x${video.videoHeight}`);
-// OPTIMIZATION: Set canvas dimensions to match video
+// Set canvas dimensions to match video for accurate processing
 canvasElement.width = video.videoWidth;
 canvasElement.height = video.videoHeight;
-// OPTIMIZATION: Improve rendering performance
-canvas.imageSmoothingEnabled = false; // Disable anti-aliasing for better QR detection
+// Disable anti-aliasing for better QR code edge detection
+canvas.imageSmoothingEnabled = false;
 // Start batch mode automatically
 startBatchMode();
 // Start video playback
@@ -2259,26 +2275,22 @@ video.style.display = 'block';
 if (typeof ZXing === 'undefined') {
 loadZXing()
 .then(() => {
-// Start scanning
+// Start scanning with improvements
 scanning = true;
 requestAnimationFrame(scanQRCode);
-// Show scanning indicator
 updateScanStatus('Camera active - looking for QR codes');
-// OPTIMIZATION: Add batch mode indicator
-addScanLogEntry('Continuous & batch scanning enabled', 'info');
+addScanLogEntry('Enhanced QR detection active', 'info');
 })
 .catch(error => {
 console.error("Failed to load ZXing:", error);
 updateScanStatus('Error: Failed to load ZXing library');
 });
 } else {
-// Start scanning
+// Start scanning with improvements
 scanning = true;
 requestAnimationFrame(scanQRCode);
-// Show scanning indicator
 updateScanStatus('Camera active - looking for QR codes');
-// OPTIMIZATION: Add batch mode indicator
-addScanLogEntry('Continuous & batch scanning enabled', 'info');
+addScanLogEntry('Enhanced QR detection active', 'info');
 }
 })
 .catch(error => {
@@ -2428,177 +2440,375 @@ frame.style.borderColor = '#24325f';
 }
 // Update scan status message
 function updateScanStatus(message) {
-    const statusEl = document.getElementById('scan-status');
-    if (!statusEl) return;
-    
-    // SIMPLIFIED: Just show one-word status messages
-    let displayMessage = message;
-    let bgColor = 'rgba(0, 0, 0, 0.7)';  // Default color
-    
-    // Handle different message types with simple display text
-    if (typeof message === 'string') {
-        if (message.includes('Successfully') || message.includes('Processed')) {
-            displayMessage = 'SUCCESS';
-            bgColor = 'rgba(0, 128, 0, 0.8)';  // Green
-        } else if (message.includes('Error') || message.includes('failed')) {
-            displayMessage = 'ERROR';
-            bgColor = 'rgba(220, 0, 0, 0.8)';  // Red
-        } else if (message.includes('Duplicate')) {
-            displayMessage = 'DUPLICATE';
-            bgColor = 'rgba(255, 165, 0, 0.8)';  // Orange
-        } else if (message.includes('Already')) {
-            displayMessage = 'ALREADY SCANNED';
-            bgColor = 'rgba(255, 165, 0, 0.8)';  // Orange
-        } else if (message.includes('Added to batch')) {
-            displayMessage = 'ADDED';
-            bgColor = 'rgba(0, 128, 255, 0.8)';  // Blue
-        } else if (message.includes('Scanning')) {
-            displayMessage = 'SCANNING';
-        } else if (message.includes('Waiting')) {
-            displayMessage = 'WAITING';
-        } else if (message.includes('Processing batch')) {
-            displayMessage = 'PROCESSING';
-            bgColor = 'rgba(255, 165, 0, 0.8)';  // Orange
-        }
-    }
-    
-    // Update the element
-    statusEl.textContent = displayMessage;
-    statusEl.style.backgroundColor = bgColor;
+const statusEl = document.getElementById('scan-status');
+if (!statusEl) return;
+// SIMPLIFIED: Just show one-word status messages
+let displayMessage = message;
+let bgColor = 'rgba(0, 0, 0, 0.7)';  // Default color
+// Handle different message types with simple display text
+if (typeof message === 'string') {
+if (message.includes('Successfully') || message.includes('Processed')) {
+displayMessage = 'SUCCESS';
+bgColor = 'rgba(0, 128, 0, 0.8)';  // Green
+} else if (message.includes('Error') || message.includes('failed')) {
+displayMessage = 'ERROR';
+bgColor = 'rgba(220, 0, 0, 0.8)';  // Red
+} else if (message.includes('Duplicate')) {
+displayMessage = 'DUPLICATE';
+bgColor = 'rgba(255, 165, 0, 0.8)';  // Orange
+} else if (message.includes('Already')) {
+displayMessage = 'ALREADY SCANNED';
+bgColor = 'rgba(255, 165, 0, 0.8)';  // Orange
+} else if (message.includes('Added to batch')) {
+displayMessage = 'ADDED';
+bgColor = 'rgba(0, 128, 255, 0.8)';  // Blue
+} else if (message.includes('Scanning')) {
+displayMessage = 'SCANNING';
+} else if (message.includes('Waiting')) {
+displayMessage = 'WAITING';
+} else if (message.includes('Processing batch')) {
+displayMessage = 'PROCESSING';
+bgColor = 'rgba(255, 165, 0, 0.8)';  // Orange
+}
+}
+// Update the element
+statusEl.textContent = displayMessage;
+statusEl.style.backgroundColor = bgColor;
+}
+function tryMultiScaleDetection(imageData) {
+// Try original image first
+if (decodeQRFromImageData(imageData)) {
+return true;
+}
+// Try with preprocessing
+const processedData = preprocessImageForQRDetection(imageData);
+if (decodeQRFromImageData(processedData)) {
+return true;
+}
+// Try at different scales for distance handling
+const scales = [0.5, 0.75, 1.5, 2.0];
+for (const scale of scales) {
+const scaledData = scaleImageData(processedData, scale);
+if (decodeQRFromImageData(scaledData)) {
+return true;
+}
+}
+return false;
+}
+function decodeQRFromImageData(imageData) {
+try {
+const width = imageData.width;
+const height = imageData.height;
+// Create a Uint8Array for ZXing grayscale image
+const data = new Uint8ClampedArray(width * height);
+// Convert to grayscale for ZXing
+for (let i = 0; i < height; i++) {
+for (let j = 0; j < width; j++) {
+const idx = (i * width + j) * 4;
+// Fast grayscale calculation
+const gray = (imageData.data[idx] + imageData.data[idx + 1] + imageData.data[idx + 2]) / 3;
+data[i * width + j] = gray;
+}
+}
+// Use ZXing to decode QR code
+const source = new ZXing.RGBLuminanceSource(data, width, height);
+const binarizer = new ZXing.HybridBinarizer(source);
+const bitmap = new ZXing.BinaryBitmap(binarizer);
+// Use QR code reader with increased configuration for error correction
+const reader = new ZXing.QRCodeReader();
+const hints = new Map();
+hints.set(ZXing.DecodeHintType.TRY_HARDER, true); // More aggressive attempts at reading
+hints.set(ZXing.DecodeHintType.PURE_BARCODE, false); // Optimized for QR with finder patterns
+const result = reader.decode(bitmap, hints);
+if (result) {
+handleQRCode({
+data: result.getText(),
+location: result.getResultPoints()
+});
+highlightQR(result.getResultPoints());
+return true;
+}
+} catch (notFoundError) {
+// QR code not found in this image - this is normal
+return false;
+}
+return false;
 }
 // QR code scanning function - Alternative implementation
 function scanQRCode() {
-    if (!scanning) return;
-    
-    // Only process frames when video is ready
-    if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        try {
-            // OPTIMIZATION: Only process every other frame to reduce CPU usage
-            if (window.scanFrameCounter === undefined) {
-                window.scanFrameCounter = 0;
-            }
-            
-            window.scanFrameCounter++;
-            if (window.scanFrameCounter % 2 !== 0) {
-                requestAnimationFrame(scanQRCode);
-                return;
-            }
-            
-            // Draw the video frame to the canvas
-            canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
-            
-            // Verify ZXing is available
-            if (typeof ZXing === 'undefined') {
-                updateScanStatus('ERROR');
-                loadZXing().catch(err => console.error("Failed to reload ZXing:", err));
-                requestAnimationFrame(scanQRCode);
-                return;
-            }
-            
-            // Get image data
-            const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
-            const width = imageData.width;
-            const height = imageData.height;
-            
-            // Create a Uint8Array for ZXing
-            const data = new Uint8ClampedArray(width * height);
-            
-            // OPTIMIZATION: Downsampling - only process every other pixel
-            for (let i = 0; i < height; i += 2) {
-                for (let j = 0; j < width; j += 2) {
-                    const idx = (i * width + j) * 4;
-                    // Fast grayscale calculation
-                    const gray = (imageData.data[idx] + imageData.data[idx + 1] + imageData.data[idx + 2]) / 3;
-                    data[(i/2) * (width/2) + (j/2)] = gray;
-                }
-            }
-            
-            try {
-                // Use ZXing to decode QR code
-                const source = new ZXing.RGBLuminanceSource(data, width/2, height/2);
-                const binarizer = new ZXing.HybridBinarizer(source);
-                const bitmap = new ZXing.BinaryBitmap(binarizer);
-                const reader = new ZXing.QRCodeReader();
-                const result = reader.decode(bitmap);
-                
-                if (result) {
-                    handleQRCode({
-                        data: result.getText(),
-                        location: result.getResultPoints()
-                    });
-                    highlightQR(result.getResultPoints());
-                }
-            } catch (notFoundError) {
-                // No QR code found - this is normal, continue scanning
-                updateScanStatus('SCANNING');
-            }
-        } catch (error) {
-            console.error("Error in scan process:", error);
-            updateScanStatus('ERROR');
-        }
-    } else {
-        updateScanStatus('WAITING');
-    }
-    
-    // Continue scanning
-    requestAnimationFrame(scanQRCode);
+if (!scanning) return;
+// Only process frames when video is ready
+if (video.readyState === video.HAVE_ENOUGH_DATA) {
+try {
+// Dynamic frame processing rate based on device performance
+if (window.scanFrameCounter === undefined) {
+window.scanFrameCounter = 0;
+window.lastProcessingTime = 0;
+window.processingTimeAvg = 0;
+window.dynamicSkipFrames = 1; // Start with processing every frame
 }
-
+window.scanFrameCounter++;
+// Skip frames based on dynamic rate (adjusted based on processing time)
+if (window.scanFrameCounter % window.dynamicSkipFrames !== 0) {
+requestAnimationFrame(scanQRCode);
+return;
+}
+const processingStart = performance.now();
+// Draw the video frame to the canvas
+canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+// Verify ZXing is available
+if (typeof ZXing === 'undefined') {
+updateScanStatus('ERROR');
+loadZXing().catch(err => console.error("Failed to reload ZXing:", err));
+requestAnimationFrame(scanQRCode);
+return;
+}
+// Get image data
+const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+// First pass: Use advanced detection to find potential QR regions
+const potentialRegions = detectPotentialQRRegions(imageData);
+// If no potential regions found, try to decode the full image at multiple scales
+if (potentialRegions.length === 0) {
+tryMultiScaleDetection(imageData);
+} else {
+let codeDetected = false;
+// For each potential region, extract and process
+for (const region of potentialRegions) {
+if (codeDetected) break; // Stop after first detection for performance
+// Extract and preprocess the region
+const regionData = extractRegionData(imageData, region);
+const processedRegion = preprocessImageForQRDetection(regionData);
+// Try to decode this region at the original scale
+if (decodeQRFromImageData(processedRegion)) {
+codeDetected = true;
+break;
+}
+// If not detected, try at 2x zoom (for distant codes)
+const zoomedRegion = zoomRegion(processedRegion, 2);
+if (decodeQRFromImageData(zoomedRegion)) {
+codeDetected = true;
+break;
+}
+}
+// If no code detected in regions, fall back to full-frame processing
+if (!codeDetected) {
+tryMultiScaleDetection(imageData);
+}
+}
+// Calculate processing time and adjust dynamic frame skip rate
+const processingTime = performance.now() - processingStart;
+window.processingTimeAvg = 0.8 * window.processingTimeAvg + 0.2 * processingTime;
+// Adjust frame processing rate based on processing time
+// Target: Process frames fast enough to be responsive but not so fast it hurts performance
+if (window.processingTimeAvg > 100) { // If takes >100ms, increase skip rate
+window.dynamicSkipFrames = Math.min(5, window.dynamicSkipFrames + 1);
+} else if (window.processingTimeAvg < 30 && window.dynamicSkipFrames > 1) { // If fast, decrease skip rate
+window.dynamicSkipFrames = window.dynamicSkipFrames - 1;
+}
+updateScanStatus('SCANNING');
+} catch (error) {
+console.error("Error in scan process:", error);
+updateScanStatus('ERROR');
+}
+} else {
+updateScanStatus('WAITING');
+}
+// Continue scanning
+requestAnimationFrame(scanQRCode);
+}
 // Helper function to handle detected QR codes
 function handleQRCode(code) {
-    if (!code.data || code.data.trim() === '') {
-        return;
-    }
-    
-    // OPTIMIZATION: Use Set.has() for faster lookup than array.some()
-    if (!batchModeActive) {
-        // For non-batch mode, check session immediately
-        const alreadyScannedInSession = new Set(activeSession.scans.map(scan => scan.content)).has(code.data);
-        
-        if (!lastScannedCodes.has(code.data) && !alreadyScannedInSession) {
-            // Add to recent scans set
-            lastScannedCodes.add(code.data);
-            setTimeout(() => lastScannedCodes.delete(code.data), 3000);
-            
-            // Highlight and process
-            highlightQR(code.location);
-            playSuccessSound();
-            processScannedCode(code.data);
-        } else if (alreadyScannedInSession) {
-            updateScanStatus('ALREADY SCANNED');
-        } else {
-            updateScanStatus('DUPLICATE');
-        }
-    } else {
-        // Batch mode - just check against recent scans and batch buffer
-        if (!lastScannedCodes.has(code.data) && !batchBuffer.has(code.data)) {
-            // Add to recent scans set
-            lastScannedCodes.add(code.data);
-            setTimeout(() => lastScannedCodes.delete(code.data), 3000);
-            
-            // Highlight and add to batch
-            highlightQR(code.location);
-            batchBuffer.add(code.data);
-            updateBatchIndicator();
-            updateScanStatus('ADDED');
-            playSuccessSound();
-        } else if (batchBuffer.has(code.data)) {
-            updateScanStatus('ALREADY IN BATCH');
-        } else {
-            updateScanStatus('DUPLICATE');
-        }
-    }
+if (!code.data || code.data.trim() === '') {
+return;
 }
-
+// OPTIMIZATION: Use Set.has() for faster lookup than array.some()
+if (!batchModeActive) {
+// For non-batch mode, check session immediately
+const alreadyScannedInSession = new Set(activeSession.scans.map(scan => scan.content)).has(code.data);
+if (!lastScannedCodes.has(code.data) && !alreadyScannedInSession) {
+// Add to recent scans set
+lastScannedCodes.add(code.data);
+setTimeout(() => lastScannedCodes.delete(code.data), 3000);
+// Highlight and process
+highlightQR(code.location);
+playSuccessSound();
+processScannedCode(code.data);
+} else if (alreadyScannedInSession) {
+updateScanStatus('ALREADY SCANNED');
+} else {
+updateScanStatus('DUPLICATE');
+}
+} else {
+// Batch mode - just check against recent scans and batch buffer
+if (!lastScannedCodes.has(code.data) && !batchBuffer.has(code.data)) {
+// Add to recent scans set
+lastScannedCodes.add(code.data);
+setTimeout(() => lastScannedCodes.delete(code.data), 3000);
+// Highlight and add to batch
+highlightQR(code.location);
+batchBuffer.add(code.data);
+updateBatchIndicator();
+updateScanStatus('ADDED');
+playSuccessSound();
+} else if (batchBuffer.has(code.data)) {
+updateScanStatus('ALREADY IN BATCH');
+} else {
+updateScanStatus('DUPLICATE');
+}
+}
+}
+function hasPotentialFinderPattern(imageData, startX, startY, size) {
+const width = imageData.width;
+const endX = Math.min(startX + size, width);
+const endY = Math.min(startY + size, imageData.height);
+// Calculate grid of 5x5 cells to check for finder pattern
+const cellSize = Math.floor(size / 5);
+if (cellSize < 1) return false;
+const grid = [];
+// Sample the 5x5 grid to look for finder pattern
+for (let gy = 0; gy < 5; gy++) {
+grid[gy] = [];
+for (let gx = 0; gx < 5; gx++) {
+const cellX = startX + gx * cellSize;
+const cellY = startY + gy * cellSize;
+// Calculate average darkness of this cell
+let sum = 0;
+let count = 0;
+for (let y = cellY; y < cellY + cellSize && y < endY; y++) {
+for (let x = cellX; x < cellX + cellSize && x < endX; x++) {
+const idx = (y * width + x) * 4;
+const gray = (imageData.data[idx] + imageData.data[idx + 1] + imageData.data[idx + 2]) / 3;
+sum += gray;
+count++;
+}
+}
+// Cell is dark if average is below 128
+grid[gy][gx] = (count > 0) ? (sum / count < 128) : false;
+}
+}
+// Check for finder pattern: 
+// - Outer border should be all dark
+// - Second layer should be all light
+// - Middle should be dark
+// Check outer border (row 0, row 4, col 0, col 4)
+let outerBorderDark = true;
+for (let i = 0; i < 5; i++) {
+if (!grid[0][i] || !grid[4][i] || !grid[i][0] || !grid[i][4]) {
+outerBorderDark = false;
+break;
+}
+}
+// Check second layer (row 1, row 3, col 1, col 3) - should be white
+let secondLayerLight = true;
+for (let i = 1; i < 4; i++) {
+if (grid[1][i] || grid[3][i] || grid[i][1] || grid[i][3]) {
+secondLayerLight = false;
+break;
+}
+}
+// Check middle (2,2) - should be dark
+const middleDark = grid[2][2];
+// Return true if pattern matches
+return outerBorderDark && secondLayerLight && middleDark;
+}
+function mergeOverlappingRegions(regions) {
+if (regions.length <= 1) return regions;
+const merged = [];
+regions.sort((a, b) => a.x - b.x);
+let current = regions[0];
+for (let i = 1; i < regions.length; i++) {
+const region = regions[i];
+// Check if regions overlap
+if (
+region.x <= current.x + current.width &&
+region.x + region.width >= current.x &&
+region.y <= current.y + current.height &&
+region.y + region.height >= current.y
+) {
+// Merge regions
+current = {
+x: Math.min(current.x, region.x),
+y: Math.min(current.y, region.y),
+width: Math.max(current.x + current.width, region.x + region.width) - Math.min(current.x, region.x),
+height: Math.max(current.y + current.height, region.y + region.height) - Math.min(current.y, region.y)
+};
+} else {
+merged.push(current);
+current = region;
+}
+}
+merged.push(current);
+return merged;
+}
+function scaleImageData(imageData, scale) {
+const srcWidth = imageData.width;
+const srcHeight = imageData.height;
+const destWidth = Math.floor(srcWidth * scale);
+const destHeight = Math.floor(srcHeight * scale);
+// Create a temporary canvas for scaling
+const canvas = document.createElement('canvas');
+canvas.width = destWidth;
+canvas.height = destHeight;
+const ctx = canvas.getContext('2d');
+// Create new ImageData and draw the scaled version
+const scaledImgData = ctx.createImageData(destWidth, destHeight);
+// Put the original data into a temporary canvas
+const tempCanvas = document.createElement('canvas');
+tempCanvas.width = srcWidth;
+tempCanvas.height = srcHeight;
+const tempCtx = tempCanvas.getContext('2d');
+tempCtx.putImageData(imageData, 0, 0);
+// Use canvas scaling for better quality
+ctx.drawImage(tempCanvas, 0, 0, srcWidth, srcHeight, 0, 0, destWidth, destHeight);
+// Get the scaled image data
+return ctx.getImageData(0, 0, destWidth, destHeight);
+}
+function zoomRegion(regionData, zoomFactor) {
+const width = regionData.width;
+const height = regionData.height;
+const zoomedWidth = Math.floor(width / zoomFactor);
+const zoomedHeight = Math.floor(height / zoomFactor);
+// Center the zoomed region
+const startX = Math.floor((width - zoomedWidth) / 2);
+const startY = Math.floor((height - zoomedHeight) / 2);
+// Create a temporary canvas for scaling
+const canvas = document.createElement('canvas');
+canvas.width = width;
+canvas.height = height;
+const ctx = canvas.getContext('2d');
+// Put the original data into the canvas
+ctx.putImageData(regionData, 0, 0);
+// Create an enlarged canvas for the zoomed result
+const zoomedCanvas = document.createElement('canvas');
+zoomedCanvas.width = width;
+zoomedCanvas.height = height;
+const zoomedCtx = zoomedCanvas.getContext('2d');
+// Draw the zoomed portion
+zoomedCtx.drawImage(
+canvas, 
+startX, startY, zoomedWidth, zoomedHeight, 
+0, 0, width, height
+);
+// Get the zoomed image data
+return zoomedCtx.getImageData(0, 0, width, height);
+}
 // OPTIMIZATION: Simple detection of dark regions that might contain QR codes
 function detectPotentialQRRegions(imageData) {
-// This is a simplified version - a real implementation would be more sophisticated
 const regions = [];
-const blockSize = 20;
-const threshold = 100;
-for (let y = 0; y < imageData.height; y += blockSize) {
-for (let x = 0; x < imageData.width; x += blockSize) {
-if (isDarkRegion(imageData, x, y, blockSize, threshold)) {
+const width = imageData.width;
+const height = imageData.height;
+// More intelligent block size based on image dimensions
+const blockSize = Math.ceil(Math.min(width, height) / 20);
+// Step size is smaller for more thorough scanning
+const stepSize = Math.max(blockSize / 2, 10);
+// Lower threshold for better sensitivity
+const threshold = 80;
+// Detect dark-to-light transitions (potential finder patterns)
+for (let y = 0; y < height - blockSize; y += stepSize) {
+for (let x = 0; x < width - blockSize; x += stepSize) {
+// Check if this region has QR finder pattern characteristics
+if (hasPotentialFinderPattern(imageData, x, y, blockSize)) {
+// Create a region of interest around this potential finder pattern
 regions.push({
 x: Math.max(0, x - blockSize),
 y: Math.max(0, y - blockSize),
@@ -2608,7 +2818,8 @@ height: blockSize * 3
 }
 }
 }
-return regions;
+// Merge overlapping regions
+return mergeOverlappingRegions(regions);
 }
 // Helper to check if a region is dark (potential QR code)
 function isDarkRegion(imageData, startX, startY, size, threshold) {
@@ -2669,14 +2880,22 @@ canvas.width = width;
 canvas.height = height;
 // Create a new ImageData object for the region
 const regionImgData = ctx.createImageData(width, height);
-// Copy pixel data
+// Copy pixel data with enhanced contrast
 for (let y = 0; y < height; y++) {
 for (let x = 0; x < width; x++) {
 const sourceIdx = ((region.y + y) * imageData.width + (region.x + x)) * 4;
 const destIdx = (y * width + x) * 4;
-regionImgData.data[destIdx] = imageData.data[sourceIdx];
-regionImgData.data[destIdx + 1] = imageData.data[sourceIdx + 1];
-regionImgData.data[destIdx + 2] = imageData.data[sourceIdx + 2];
+// Apply local contrast enhancement
+const r = imageData.data[sourceIdx];
+const g = imageData.data[sourceIdx + 1];
+const b = imageData.data[sourceIdx + 2];
+// Simple grayscale conversion
+const gray = (r * 0.299 + g * 0.587 + b * 0.114);
+// Apply basic contrast stretching
+const enhancedGray = Math.max(0, Math.min(255, (gray - 128) * 1.5 + 128));
+regionImgData.data[destIdx] = enhancedGray;
+regionImgData.data[destIdx + 1] = enhancedGray;
+regionImgData.data[destIdx + 2] = enhancedGray;
 regionImgData.data[destIdx + 3] = imageData.data[sourceIdx + 3];
 }
 }
@@ -2684,36 +2903,32 @@ return regionImgData;
 }
 // Function to start batch mode (call this after starting the camera)
 function startBatchMode() {
-    if (batchProcessingInterval) {
-        clearInterval(batchProcessingInterval);
-    }
-    
-    batchBuffer.clear();
-    batchModeActive = true;
-    
-    // OPTIMIZATION: Process batch more frequently for better responsiveness
-    batchProcessingInterval = setInterval(processBatch, 1000); // Process every 1 second instead of 2
-    
-    // Update UI to show batch mode is active
-    addScanLogEntry('Batch mode active', 'info');
-    
-    // Add batch mode indicator to scanner UI if it doesn't exist
-    if (!document.getElementById('batch-indicator')) {
-        const batchIndicator = document.createElement('div');
-        batchIndicator.className = 'scanner-ui';
-        batchIndicator.id = 'batch-indicator';
-        batchIndicator.style.position = 'absolute';
-        batchIndicator.style.top = '10px';
-        batchIndicator.style.left = '10px';
-        batchIndicator.style.backgroundColor = 'rgba(0,128,0,0.7)';
-        batchIndicator.style.color = 'white';
-        batchIndicator.style.padding = '5px 10px';
-        batchIndicator.style.borderRadius = '15px';
-        batchIndicator.style.fontSize = '12px';
-        batchIndicator.style.zIndex = '100';
-        batchIndicator.innerHTML = '⚡ Batch Mode';
-        document.querySelector('.scanner-container').appendChild(batchIndicator);
-    }
+if (batchProcessingInterval) {
+clearInterval(batchProcessingInterval);
+}
+batchBuffer.clear();
+batchModeActive = true;
+// OPTIMIZATION: Process batch more frequently for better responsiveness
+batchProcessingInterval = setInterval(processBatch, 1000); // Process every 1 second instead of 2
+// Update UI to show batch mode is active
+addScanLogEntry('Batch mode active', 'info');
+// Add batch mode indicator to scanner UI if it doesn't exist
+if (!document.getElementById('batch-indicator')) {
+const batchIndicator = document.createElement('div');
+batchIndicator.className = 'scanner-ui';
+batchIndicator.id = 'batch-indicator';
+batchIndicator.style.position = 'absolute';
+batchIndicator.style.top = '10px';
+batchIndicator.style.left = '10px';
+batchIndicator.style.backgroundColor = 'rgba(0,128,0,0.7)';
+batchIndicator.style.color = 'white';
+batchIndicator.style.padding = '5px 10px';
+batchIndicator.style.borderRadius = '15px';
+batchIndicator.style.fontSize = '12px';
+batchIndicator.style.zIndex = '100';
+batchIndicator.innerHTML = '⚡ Batch Mode';
+document.querySelector('.scanner-container').appendChild(batchIndicator);
+}
 }
 // Function to stop batch mode
 function stopBatchMode() {
@@ -2744,103 +2959,133 @@ indicator.style.backgroundColor = 'rgba(0,128,0,0.7)';
 }
 // Process all codes in the batch buffer
 function processBatch() {
-    if (processingBatch || batchBuffer.size === 0) return;
-    processingBatch = true;
-    
-    try {
-        const batchSize = batchBuffer.size;
-        const batchCodes = Array.from(batchBuffer);
-        
-        // Show batch processing notification
-        updateScanStatus('PROCESSING');
-        
-        // OPTIMIZATION: Use Set for faster duplicate checking
-        const sessionContentSet = new Set(activeSession.scans.map(scan => scan.content));
-        
-        // Filter out codes already in session
-        const newCodes = batchCodes.filter(code => !sessionContentSet.has(code));
-        
-        // Process each new code
-        newCodes.forEach(code => {
-            processScannedCode(code);
-        });
-        
-        // Clear the buffer after processing
-        batchBuffer.clear();
-        updateBatchIndicator();
-        
-        // Confirmation of batch processing
-        if (newCodes.length > 0) {
-            updateScanStatus('SUCCESS');
-            addScanLogEntry(`Processed ${newCodes.length} new codes`, 'success');
-            // Play a success sound for the whole batch
-            playSuccessSound();
-        } else {
-            updateScanStatus('NO NEW CODES');
-            addScanLogEntry('No new codes to process', 'info');
-        }
-    } catch (error) {
-        console.error("Error processing batch:", error);
-        updateScanStatus('ERROR');
-        addScanLogEntry(`Batch error: ${error.message}`, 'error');
-    } finally {
-        processingBatch = false;
-    }
+if (processingBatch || batchBuffer.size === 0) return;
+processingBatch = true;
+try {
+const batchSize = batchBuffer.size;
+const batchCodes = Array.from(batchBuffer);
+// Show batch processing notification
+updateScanStatus('PROCESSING');
+// OPTIMIZATION: Use Set for faster duplicate checking
+const sessionContentSet = new Set(activeSession.scans.map(scan => scan.content));
+// Filter out codes already in session
+const newCodes = batchCodes.filter(code => !sessionContentSet.has(code));
+// Process each new code
+newCodes.forEach(code => {
+processScannedCode(code);
+});
+// Clear the buffer after processing
+batchBuffer.clear();
+updateBatchIndicator();
+// Confirmation of batch processing
+if (newCodes.length > 0) {
+updateScanStatus('SUCCESS');
+addScanLogEntry(`Processed ${newCodes.length} new codes`, 'success');
+// Play a success sound for the whole batch
+playSuccessSound();
+} else {
+updateScanStatus('NO NEW CODES');
+addScanLogEntry('No new codes to process', 'info');
+}
+} catch (error) {
+console.error("Error processing batch:", error);
+updateScanStatus('ERROR');
+addScanLogEntry(`Batch error: ${error.message}`, 'error');
+} finally {
+processingBatch = false;
+}
 }
 //========================================================================================================== QR DATA PROCESSING ========//
+function preprocessImageForQRDetection(imageData) {
+const width = imageData.width;
+const height = imageData.height;
+const processedData = new Uint8ClampedArray(width * height * 4);
+// Create a copy of the original data
+for (let i = 0; i < imageData.data.length; i++) {
+processedData[i] = imageData.data[i];
+}
+// Apply adaptive thresholding for better contrast
+const blockSize = Math.ceil(Math.min(width, height) / 16); // Adaptive block size
+const C = 7; // Constant subtracted from mean
+for (let y = 0; y < height; y++) {
+for (let x = 0; x < width; x++) {
+// Calculate local mean
+let sum = 0;
+let count = 0;
+for (let dy = -blockSize/2; dy < blockSize/2; dy++) {
+for (let dx = -blockSize/2; dx < blockSize/2; dx++) {
+const nx = x + dx;
+const ny = y + dy;
+if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+const idx = (ny * width + nx) * 4;
+// Fast grayscale calculation
+const gray = (imageData.data[idx] + imageData.data[idx + 1] + imageData.data[idx + 2]) / 3;
+sum += gray;
+count++;
+}
+}
+}
+const mean = sum / count;
+const idx = (y * width + x) * 4;
+// Fast grayscale of current pixel
+const gray = (imageData.data[idx] + imageData.data[idx + 1] + imageData.data[idx + 2]) / 3;
+// Apply threshold (if pixel is less than mean-C, set to black, otherwise white)
+const value = gray < (mean - C) ? 0 : 255;
+processedData[idx] = value;     // R
+processedData[idx + 1] = value; // G
+processedData[idx + 2] = value; // B
+// Keep alpha the same
+processedData[idx + 3] = imageData.data[idx + 3];
+}
+}
+// Create new ImageData with processed pixels
+return new ImageData(processedData, width, height);
+}
 // Process scanned QR code 
 function processScannedCode(data) {
-    // Additional validation to ensure we're not adding empty codes
-    if (!data || data.trim() === '') {
-        console.error("Attempted to process empty QR code data");
-        updateScanStatus('ERROR');
-        addScanLogEntry('Empty QR code data - not saved', 'error');
-        return;
-    }
-    
-    // OPTIMIZATION: Check if code already exists in session to prevent duplicates
-    if (activeSession.scans.some(scan => scan.content === data)) {
-        updateScanStatus('ALREADY SCANNED');
-        return;
-    }
-    
-    const now = new Date();
-    const scan = {
-        id: activeSession.scans.length + 1,
-        content: data,
-        time: now.toISOString(),
-        formattedTime: formatTime(now)
-    };
-    
-    // Add to active session
-    activeSession.scans.push(scan);
-    
-    // Update UI
-    if (activeSession.scans.length === 1) {
-        noScansMessage.style.display = 'none';
-        resultTable.style.display = 'table';
-    }
-    
-    const row = document.createElement('tr');
-    row.innerHTML = `
-        <td>${scan.id}</td>
-        <td>${escapeHtml(scan.content)}</td>
-        <td>${scan.formattedTime}</td>
-    `;
-    resultBody.appendChild(row);
-    
-    // Find the session in the sessions array and update it
-    const sessionIndex = sessions.findIndex(s => s.id === activeSession.id);
-    if (sessionIndex !== -1) {
-        sessions[sessionIndex] = {...activeSession};
-    }
-    
-    // Save both active session and completed sessions
-    saveActiveSession();
-    saveSessionsToStorage();
-    
-    // Add to scan log with shorter content display
-    addScanLogEntry(`Saved code #${scan.id}`, 'success');
+// Additional validation to ensure we're not adding empty codes
+if (!data || data.trim() === '') {
+console.error("Attempted to process empty QR code data");
+updateScanStatus('ERROR');
+addScanLogEntry('Empty QR code data - not saved', 'error');
+return;
+}
+// OPTIMIZATION: Check if code already exists in session to prevent duplicates
+if (activeSession.scans.some(scan => scan.content === data)) {
+updateScanStatus('ALREADY SCANNED');
+return;
+}
+const now = new Date();
+const scan = {
+id: activeSession.scans.length + 1,
+content: data,
+time: now.toISOString(),
+formattedTime: formatTime(now)
+};
+// Add to active session
+activeSession.scans.push(scan);
+// Update UI
+if (activeSession.scans.length === 1) {
+noScansMessage.style.display = 'none';
+resultTable.style.display = 'table';
+}
+const row = document.createElement('tr');
+row.innerHTML = `
+<td>${scan.id}</td>
+<td>${escapeHtml(scan.content)}</td>
+<td>${scan.formattedTime}</td>
+`;
+resultBody.appendChild(row);
+// Find the session in the sessions array and update it
+const sessionIndex = sessions.findIndex(s => s.id === activeSession.id);
+if (sessionIndex !== -1) {
+sessions[sessionIndex] = {...activeSession};
+}
+// Save both active session and completed sessions
+saveActiveSession();
+saveSessionsToStorage();
+// Add to scan log with shorter content display
+addScanLogEntry(`Saved code #${scan.id}`, 'success');
 }
 // End current scanning session - Renamed from stopScanner
 function endScanningSession() {
