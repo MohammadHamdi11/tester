@@ -1161,28 +1161,114 @@ let batchModeActive = true; // Always enabled as requested
 let batchBuffer = new Set(); // Store unique QR codes during batch scanning
 let processingBatch = false; // Flag to prevent concurrent batch processing
 let batchProcessingInterval = null; // Interval for batch processing
-//========================================================================================================== GITHUB BACKUP FUNCTIONS ========//
-// Check internet connection status
+//========================================================================================================== BACKUP ALERT FEATURE ========//
+// Function to create the backup alert element
+function createBackupAlertElement() {
+    // Create the alert element
+    const backupAlert = document.createElement('div');
+    backupAlert.id = 'backupAlert';
+    
+    // Apply the styles you requested
+    backupAlert.style.margin = '10px 0 15px 0';
+    backupAlert.style.padding = '12px 15px';
+    backupAlert.style.borderRadius = 'var(--border-radius)';
+    backupAlert.style.fontWeight = '500';
+    backupAlert.style.boxShadow = '0 0 8px rgba(0, 0, 0, 0.1)';
+    backupAlert.style.textAlign = 'center';
+    backupAlert.style.position = 'relative';
+    backupAlert.style.overflow = 'hidden';
+    
+    // Set the initial message based on connection status
+    updateBackupAlertMessage(backupAlert);
+    
+    return backupAlert;
+}
+
+// Function to update the backup alert message and styling
+function updateBackupAlertMessage(alertElement) {
+    if (!alertElement) return;
+    
+    if (navigator.onLine) {
+        // Online styles
+        alertElement.style.backgroundColor = 'rgba(76, 175, 80, 0.1)';
+        alertElement.style.borderLeft = '4px solid #4caf50';
+        alertElement.style.color = '#2e7d32';
+        alertElement.textContent = 'You are connected to the internet. Backups will occur automatically.';
+    } else {
+        // Offline styles
+        alertElement.style.backgroundColor = 'rgba(244, 67, 54, 0.1)';
+        alertElement.style.borderLeft = '4px solid #f44336';
+        alertElement.style.color = '#c62828';
+        alertElement.textContent = 'You are offline, don\'t forget to reopen the app and ensure your data is backed up when you have a good internet connection to prevent data loss.';
+    }
+}
+
+// Function to add backup alert to the relevant tabs
+function addBackupAlertToTabs() {
+    // Define the tab IDs where the alert should appear
+    const tabIds = ['scanner', 'selector', 'history', 'backup'];
+    
+    // Create the alert element once
+    const backupAlert = createBackupAlertElement();
+    
+    // Add the alert to each tab
+    tabIds.forEach(tabId => {
+        const tabContent = document.getElementById(tabId);
+        if (tabContent) {
+            // Create a clone of the alert for each tab
+            const alertClone = backupAlert.cloneNode(true);
+            
+            // Insert the alert at the top of the tab content
+            if (tabContent.firstChild) {
+                tabContent.insertBefore(alertClone, tabContent.firstChild);
+            } else {
+                tabContent.appendChild(alertClone);
+            }
+        }
+    });
+}
+
+// Function to update all backup alerts on the page
+function updateAllBackupAlerts() {
+    const alerts = document.querySelectorAll('#backupAlert');
+    alerts.forEach(alert => {
+        updateBackupAlertMessage(alert);
+    });
+}
+
+// Initialize the backup alerts when the DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Add the backup alerts to the tabs
+    addBackupAlertToTabs();
+    
+    // Update the alerts when online/offline status changes
+    window.addEventListener('online', updateAllBackupAlerts);
+    window.addEventListener('offline', updateAllBackupAlerts);
+});
+//========================================================================================================== GITHUB BACKUP FUNCTIONS ========//// Check internet connection status
 function updateConnectionStatus() {
-if (navigator.onLine) {
-connectionStatus.textContent = 'Online';
-connectionStatus.style.color = '#4caf50'; // Green
-connectionStatus.style.fontWeight = 'bold';
-// Update auto-backup status display if element exists
-if (autoBackupStatus) {
-const autoBackupEnabled = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) !== 'false';
-autoBackupStatus.textContent = autoBackupEnabled ? 'Enabled' : 'Disabled';
-autoBackupStatus.style.color = autoBackupEnabled ? '#4caf50' : '#f44336';
-}
-} else {
-connectionStatus.textContent = 'Offline';
-connectionStatus.style.color = '#f44336'; // Red
-connectionStatus.style.fontWeight = 'bold';
-if (autoBackupStatus) {
-autoBackupStatus.textContent = 'Unavailable (Offline)';
-autoBackupStatus.style.color = '#f44336';
-}
-}
+    if (navigator.onLine) {
+        connectionStatus.textContent = 'Online';
+        connectionStatus.style.color = '#4caf50'; // Green
+        connectionStatus.style.fontWeight = 'bold';
+        // Update auto-backup status display if element exists
+        if (autoBackupStatus) {
+            const autoBackupEnabled = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) !== 'false';
+            autoBackupStatus.textContent = autoBackupEnabled ? 'Enabled' : 'Disabled';
+            autoBackupStatus.style.color = autoBackupEnabled ? '#4caf50' : '#f44336';
+        }
+    } else {
+        connectionStatus.textContent = 'Offline';
+        connectionStatus.style.color = '#f44336'; // Red
+        connectionStatus.style.fontWeight = 'bold';
+        if (autoBackupStatus) {
+            autoBackupStatus.textContent = 'Unavailable (Offline)';
+            autoBackupStatus.style.color = '#f44336';
+        }
+    }
+    
+    // Update all backup alerts to reflect current connection status
+    updateAllBackupAlerts();
 }
 // Get GitHub token by combining prefix and suffix
 function getGitHubToken() {
@@ -1716,62 +1802,75 @@ return true;
 }
 //========================================================================================================== INITIALIZATION ========//
 document.addEventListener('DOMContentLoaded', function() {
-preloadSuccessSound();
-console.log("DOM fully loaded");
-loadSessionsFromStorage();
-checkForRecoverableSession();
-updateHistoryView();
-// Initialize backup tab
-updateConnectionStatus();
-loadGitHubToken();
-updateLastBackupTimeDisplay();
-// Setup manual entry functionality
-setupManualEntryButton();
-// Setup button event listeners
-setupButtonEventListeners();
-// Enable auto-backup by default
-if (localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) === null) {
-localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, 'true');
-}
-// Setup online/offline event listeners
-window.addEventListener('online', () => {
-updateConnectionStatus();
-// Try auto-backup when connection is restored
-tryAutoBackup();
-});
-window.addEventListener('offline', updateConnectionStatus);
-// Check if ZXing is already defined
-if (typeof ZXing !== 'undefined') {
-console.log("ZXing is already loaded from local file");
-} else {
-console.log("ZXing not detected, will attempt to load");
-loadZXing()
-.then(() => console.log("ZXing library loaded and ready"))
-.catch(error => {
-console.error("Error loading ZXing:", error);
-alert("Failed to load QR code scanning library. Please check your files and try again.");
-});
-}
-// Load last backup session count
-lastBackupSessions = parseInt(localStorage.getItem(LAST_BACKUP_SESSIONS_KEY) || '0');
-// Try auto-backup if online and there are new sessions
-if (navigator.onLine) {
-// Use setTimeout to ensure the app is fully loaded first
-setTimeout(() => {
-tryAutoBackup().then(success => {
-if (success) {
-console.log("Initial auto-backup completed");
-}
-});
-}, 2000);
-}
-// Add beforeunload event listener to prevent accidental closing during active session
-// This only handles scanner session - checklist module handles its own separately
-window.addEventListener('beforeunload', handleBeforeUnload);
-// Initialize the checklist module if the elements exist
-if (document.getElementById('startChecklistSessionBtn')) {
-initializeChecklistModule();
-}
+    preloadSuccessSound();
+    console.log("DOM fully loaded");
+    loadSessionsFromStorage();
+    checkForRecoverableSession();
+    updateHistoryView();
+    
+    // Initialize backup tab
+    updateConnectionStatus();
+    loadGitHubToken();
+    updateLastBackupTimeDisplay();
+    
+    // Initialize backup alert feature
+    addBackupAlertToTabs();
+    
+    // Setup manual entry functionality
+    setupManualEntryButton();
+    
+    // Setup button event listeners
+    setupButtonEventListeners();
+    
+    // Enable auto-backup by default
+    if (localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) === null) {
+        localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, 'true');
+    }
+    
+    // Setup online/offline event listeners
+    window.addEventListener('online', () => {
+        updateConnectionStatus();
+        // Try auto-backup when connection is restored
+        tryAutoBackup();
+    });
+    window.addEventListener('offline', updateConnectionStatus);
+    
+    // Check if ZXing is already defined
+    if (typeof ZXing !== 'undefined') {
+        console.log("ZXing is already loaded from local file");
+    } else {
+        console.log("ZXing not detected, will attempt to load");
+        loadZXing()
+        .then(() => console.log("ZXing library loaded and ready"))
+        .catch(error => {
+            console.error("Error loading ZXing:", error);
+            alert("Failed to load QR code scanning library. Please check your files and try again.");
+        });
+    }
+    
+    // Load last backup session count
+    lastBackupSessions = parseInt(localStorage.getItem(LAST_BACKUP_SESSIONS_KEY) || '0');
+    
+    // Try auto-backup if online and there are new sessions
+    if (navigator.onLine) {
+        // Use setTimeout to ensure the app is fully loaded first
+        setTimeout(() => {
+            tryAutoBackup().then(success => {
+                if (success) {
+                    console.log("Initial auto-backup completed");
+                }
+            });
+        }, 2000);
+    }
+    
+    // Add beforeunload event listener to prevent accidental closing during active session
+    // This only handles scanner session - checklist module handles its own separately
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    // Initialize the checklist module if the elements exist
+    if (document.getElementById('startChecklistSessionBtn')) {
+        initializeChecklistModule();
+    }
 });
 //================================================================================================================================
 // Load ZXing from local file
