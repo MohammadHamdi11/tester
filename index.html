@@ -2192,104 +2192,104 @@ locationInput.focus();
 //========================================================================================================== CAMERA & SCANNER FUNCTIONS ========//
 // Improved camera initialization function
 async function startCamera() {
-  try {
-    // Create scanner UI elements
-    setupScannerUI();
-    
-    // Try to get camera access with optimized settings (but more conservative to ensure compatibility)
-    const constraints = {
-      video: {
-        facingMode: 'environment',
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        frameRate: { ideal: 30 }
-      }
-    };
-    
-    console.log("Requesting camera access with constraints:", constraints);
-    videoStream = await navigator.mediaDevices.getUserMedia(constraints);
-    console.log("Camera access granted:", videoStream);
-    
-    // Get the actual track settings
-    const videoTrack = videoStream.getVideoTracks()[0];
-    
-    // Apply only basic camera optimizations that work across most devices
-    try {
-      const capabilities = videoTrack.getCapabilities();
-      if (capabilities && Object.keys(capabilities).length > 0) {
-        const settings = {};
-        
-        // Only apply the most broadly supported settings
-        if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
-          settings.focusMode = 'continuous';
-        }
-        
-        // Apply these basic settings if supported
-        if (Object.keys(settings).length > 0) {
-          await videoTrack.applyConstraints({ advanced: [settings] });
-          console.log("Applied basic camera settings:", settings);
-        }
-      }
-    } catch (settingsError) {
-      // Non-critical error, continue without custom settings
-      console.warn("Could not apply camera settings:", settingsError);
-    }
-    
-    // Set up video element
-    video.srcObject = videoStream;
-    video.setAttribute("playsinline", true);
-    
-    video.onloadedmetadata = () => {
-      console.log(`Video ready: ${video.videoWidth}x${video.videoHeight}`);
-      
-      // Set canvas dimensions to match video
-      canvasElement.width = video.videoWidth;
-      canvasElement.height = video.videoHeight;
-      
-      // Improve rendering performance
-      canvas.imageSmoothingEnabled = false;
-      
-      // Start batch mode automatically
-      startBatchMode();
-      
-      // Start video playback
-      video.play()
-        .then(() => {
-          console.log("Video playback started");
-          scannerPlaceholder.style.display = 'none';
-          video.style.display = 'block';
-          
-          // Ensure ZXing is loaded before starting scanning
-          if (typeof ZXing === 'undefined') {
-            loadZXing()
-              .then(() => {
-                // Start scanning with enhanced function
-                scanning = true;
-                requestAnimationFrame(ScanQRCode);
-                updateScanStatus('Camera active - looking for QR codes');
-                addScanLogEntry('Enhanced QR detection active', 'info');
-              })
-              .catch(error => {
-                console.error("Failed to load ZXing:", error);
-                updateScanStatus('Error: Failed to load ZXing library');
-              });
-          } else {
-            // Start scanning with enhanced function
-            scanning = true;
-            requestAnimationFrame(ScanQRCode);
-            updateScanStatus('Camera active - looking for QR codes');
-            addScanLogEntry('Enhanced QR detection active', 'info');
-          }
-        })
-        .catch(error => {
-          console.error("Video playback failed:", error);
-          alert("Failed to start video playback. Please try again.");
-        });
-    };
-  } catch (error) {
-    console.error("Camera access error:", error);
-    alert(`Failed to access camera: ${error.message}. Please check camera permissions.`);
-  }
+try {
+// Create scanner UI elements
+setupScannerUI();
+// Try to get camera access with optimized settings
+const constraints = {
+video: {
+facingMode: 'environment',
+width: { ideal: 1280 },
+height: { ideal: 720 },
+// OPTIMIZATION: Request additional settings for better performance
+frameRate: { ideal: 30 },       // Higher frame rate for smoother scanning
+focusMode: { ideal: "continuous" }, // Continuous auto-focus
+exposureMode: { ideal: "continuous" }, // Continuous auto-exposure
+whiteBalanceMode: { ideal: "continuous" }
+}
+};
+console.log("Requesting camera access with constraints:", constraints);
+videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+console.log("Camera access granted:", videoStream);
+// Get the actual track settings
+const videoTrack = videoStream.getVideoTracks()[0];
+// OPTIMIZATION: Apply custom settings if the camera supports them
+try {
+const capabilities = videoTrack.getCapabilities();
+const settings = {};
+// Optimize focus for barcode scanning if supported
+if (capabilities.focusDistance) {
+settings.focusMode = 'manual';
+// A mid-range focus distance often works well for QR codes
+settings.focusDistance = (capabilities.focusDistance.max + capabilities.focusDistance.min) / 2;
+}
+// Optimize exposure for QR codes if supported
+if (capabilities.exposureTime) {
+// Shorter exposure time reduces blur with motion
+settings.exposureTime = capabilities.exposureTime.min * 2;
+}
+// Apply optimized settings if any
+if (Object.keys(settings).length > 0) {
+await videoTrack.applyConstraints({ advanced: [settings] });
+console.log("Applied optimized camera settings:", settings);
+}
+} catch (settingsError) {
+// Non-critical error, continue without custom settings
+console.warn("Could not apply custom camera settings:", settingsError);
+}
+// Set up video element
+video.srcObject = videoStream;
+video.setAttribute("playsinline", true);
+video.onloadedmetadata = () => {
+console.log(`Video ready: ${video.videoWidth}x${video.videoHeight}`);
+// OPTIMIZATION: Set canvas dimensions to match video
+canvasElement.width = video.videoWidth;
+canvasElement.height = video.videoHeight;
+// OPTIMIZATION: Improve rendering performance
+canvas.imageSmoothingEnabled = false; // Disable anti-aliasing for better QR detection
+// Start batch mode automatically
+startBatchMode();
+// Start video playback
+video.play()
+.then(() => {
+console.log("Video playback started");
+scannerPlaceholder.style.display = 'none';
+video.style.display = 'block';
+// Ensure ZXing is loaded before starting scanning
+if (typeof ZXing === 'undefined') {
+loadZXing()
+.then(() => {
+// Start scanning
+scanning = true;
+requestAnimationFrame(scanQRCode);
+// Show scanning indicator
+updateScanStatus('Camera active - looking for QR codes');
+// OPTIMIZATION: Add batch mode indicator
+addScanLogEntry('Continuous & batch scanning enabled', 'info');
+})
+.catch(error => {
+console.error("Failed to load ZXing:", error);
+updateScanStatus('Error: Failed to load ZXing library');
+});
+} else {
+// Start scanning
+scanning = true;
+requestAnimationFrame(scanQRCode);
+// Show scanning indicator
+updateScanStatus('Camera active - looking for QR codes');
+// OPTIMIZATION: Add batch mode indicator
+addScanLogEntry('Continuous & batch scanning enabled', 'info');
+}
+})
+.catch(error => {
+console.error("Video playback failed:", error);
+alert("Failed to start video playback. Please try again.");
+});
+};
+} catch (error) {
+console.error("Camera access error:", error);
+alert(`Failed to access camera: ${error.message}. Please check camera permissions.`);
+}
 }
 // Stop the scanner and release camera resources
 function stopScanner() {
@@ -2322,66 +2322,72 @@ console.log("Scanner stopped successfully");
 }
 // Set up scanner UI elements
 function setupScannerUI() {
-// Remove any existing UI elements first
-const oldElements = document.querySelectorAll('.scanner-ui');
-oldElements.forEach(el => el.remove());
-// Add scan frame indicator
-const scanFrame = document.createElement('div');
-scanFrame.className = 'scanner-ui';
-scanFrame.id = 'scan-frame';
-scanFrame.style.position = 'absolute';
-scanFrame.style.top = '50%';
-scanFrame.style.left = '50%';
-scanFrame.style.transform = 'translate(-50%, -50%)';
-scanFrame.style.width = '200px';
-scanFrame.style.height = '200px';
-scanFrame.style.border = '2px solid #24325f';
-scanFrame.style.borderRadius = '10px';
-scanFrame.style.boxShadow = '0 0 0 2000px rgba(0, 0, 0, 0.3)';
-scanFrame.style.zIndex = '99';
-document.querySelector('.scanner-container').appendChild(scanFrame);
-// Add status text
-const statusText = document.createElement('div');
-statusText.className = 'scanner-ui';
-statusText.id = 'scan-status';
-statusText.style.position = 'absolute';
-statusText.style.bottom = '10px';
-statusText.style.left = '50%';
-statusText.style.transform = 'translateX(-50%)';
-statusText.style.backgroundColor = 'rgba(0,0,0,0.7)';
-statusText.style.color = 'white';
-statusText.style.padding = '8px 16px';
-statusText.style.borderRadius = '20px';
-statusText.style.zIndex = '100';
-statusText.textContent = 'Starting camera...';
-document.querySelector('.scanner-container').appendChild(statusText);
-// Add scan log panel
-const scanLogPanel = document.createElement('div');
-scanLogPanel.className = 'scanner-ui';
-scanLogPanel.id = 'scan-log';
-scanLogPanel.style.position = 'absolute';
-scanLogPanel.style.top = '10px';
-scanLogPanel.style.right = '10px';
-scanLogPanel.style.width = '250px';
-scanLogPanel.style.maxHeight = '150px';
-scanLogPanel.style.overflowY = 'auto';
-scanLogPanel.style.backgroundColor = 'rgba(0,0,0,0.7)';
-scanLogPanel.style.color = 'white';
-scanLogPanel.style.padding = '8px';
-scanLogPanel.style.borderRadius = '8px';
-scanLogPanel.style.fontSize = '14px';
-scanLogPanel.style.zIndex = '100';
-scanLogPanel.innerHTML = '<div style="text-align: center; font-weight: bold; margin-bottom: 5px;">Scan Log</div>';
-document.querySelector('.scanner-container').appendChild(scanLogPanel);
-// This is crucial for QR detection to work
-canvasElement.className = 'scanner-ui';
-canvasElement.style.position = 'absolute';
-canvasElement.style.top = '0';
-canvasElement.style.left = '0';
-canvasElement.style.width = '100%';
-canvasElement.style.height = '100%';
-canvasElement.style.display = 'none'; 
-document.querySelector('.scanner-container').appendChild(canvasElement);
+    // Remove any existing UI elements first
+    const oldElements = document.querySelectorAll('.scanner-ui');
+    oldElements.forEach(el => el.remove());
+    
+    // Add scan frame indicator
+    const scanFrame = document.createElement('div');
+    scanFrame.className = 'scanner-ui';
+    scanFrame.id = 'scan-frame';
+    scanFrame.style.position = 'absolute';
+    scanFrame.style.top = '50%';
+    scanFrame.style.left = '50%';
+    scanFrame.style.transform = 'translate(-50%, -50%)';
+    scanFrame.style.width = '200px';
+    scanFrame.style.height = '200px';
+    scanFrame.style.border = '2px solid #24325f';
+    scanFrame.style.borderRadius = '10px';
+    scanFrame.style.boxShadow = '0 0 0 2000px rgba(0, 0, 0, 0.3)';
+    scanFrame.style.zIndex = '99';
+    document.querySelector('.scanner-container').appendChild(scanFrame);
+    
+    // Add status text
+    const statusText = document.createElement('div');
+    statusText.className = 'scanner-ui';
+    statusText.id = 'scan-status';
+    statusText.style.position = 'absolute';
+    statusText.style.bottom = '10px';
+    statusText.style.left = '50%';
+    statusText.style.transform = 'translateX(-50%)';
+    statusText.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    statusText.style.color = 'white';
+    statusText.style.padding = '8px 16px';
+    statusText.style.borderRadius = '20px';
+    statusText.style.zIndex = '100';
+    statusText.textContent = 'Starting camera...';
+    document.querySelector('.scanner-container').appendChild(statusText);
+    
+    // Add scan log panel
+    const scanLogPanel = document.createElement('div');
+    scanLogPanel.className = 'scanner-ui';
+    scanLogPanel.id = 'scan-log';
+    scanLogPanel.style.position = 'absolute';
+    scanLogPanel.style.top = '10px';
+    scanLogPanel.style.right = '10px';
+    scanLogPanel.style.width = '250px';
+    scanLogPanel.style.maxHeight = '150px';
+    scanLogPanel.style.overflowY = 'auto';
+    scanLogPanel.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    scanLogPanel.style.color = 'white';
+    scanLogPanel.style.padding = '8px';
+    scanLogPanel.style.borderRadius = '8px';
+    scanLogPanel.style.fontSize = '14px';
+    scanLogPanel.style.zIndex = '100';
+    scanLogPanel.innerHTML = '<div style="text-align: center; font-weight: bold; margin-bottom: 5px;">Scan Log</div>';
+    document.querySelector('.scanner-container').appendChild(scanLogPanel);
+    
+    // This is crucial for QR detection to work and for highlighting
+    canvasElement.className = 'scanner-ui';
+    canvasElement.style.position = 'absolute';
+    canvasElement.style.top = '0';
+    canvasElement.style.left = '0';
+    canvasElement.style.width = '100%';
+    canvasElement.style.height = '100%';
+    canvasElement.style.display = 'block'; // Show canvas for highlighting
+    canvasElement.style.opacity = '1'; // Make canvas fully visible
+    canvasElement.style.zIndex = '98'; // Below frame but above video
+    document.querySelector('.scanner-container').appendChild(canvasElement);
 }
 // Add a log entry to the scan log
 function addScanLogEntry(message, type = 'info') {
@@ -2463,120 +2469,187 @@ bgColor = 'rgba(255, 165, 0, 0.8)';  // Orange
 statusEl.textContent = displayMessage;
 statusEl.style.backgroundColor = bgColor;
 }
-function tryMultiScaleDetection(imageData) {
-// Try original image first
-if (decodeQRFromImageData(imageData)) {
-return true;
-}
-// Try with preprocessing
-const processedData = preprocessImageForQRDetection(imageData);
-if (decodeQRFromImageData(processedData)) {
-return true;
-}
-// Try at different scales for distance handling
-const scales = [0.5, 0.75, 1.5, 2.0];
-for (const scale of scales) {
-const scaledData = scaleImageData(processedData, scale);
-if (decodeQRFromImageData(scaledData)) {
-return true;
-}
-}
-return false;
-}
-function decodeQRFromImageData(imageData) {
-try {
-const width = imageData.width;
-const height = imageData.height;
-// Create a Uint8Array for ZXing grayscale image
-const data = new Uint8ClampedArray(width * height);
-// Convert to grayscale for ZXing
-for (let i = 0; i < height; i++) {
-for (let j = 0; j < width; j++) {
-const idx = (i * width + j) * 4;
-// Fast grayscale calculation
-const gray = (imageData.data[idx] + imageData.data[idx + 1] + imageData.data[idx + 2]) / 3;
-data[i * width + j] = gray;
-}
-}
-// Use ZXing to decode QR code
-const source = new ZXing.RGBLuminanceSource(data, width, height);
-const binarizer = new ZXing.HybridBinarizer(source);
-const bitmap = new ZXing.BinaryBitmap(binarizer);
-// Use QR code reader with increased configuration for error correction
-const reader = new ZXing.QRCodeReader();
-const hints = new Map();
-hints.set(ZXing.DecodeHintType.TRY_HARDER, true); // More aggressive attempts at reading
-hints.set(ZXing.DecodeHintType.PURE_BARCODE, false); // Optimized for QR with finder patterns
-const result = reader.decode(bitmap, hints);
-if (result) {
-handleQRCode({
-data: result.getText(),
-location: result.getResultPoints()
-});
-highlightQR(result.getResultPoints());
-return true;
-}
-} catch (notFoundError) {
-// QR code not found in this image - this is normal
-return false;
-}
-return false;
-}
-// QR code scanning function
+// QR code scanning function - Alternative implementation
 function scanQRCode() {
-  if (!scanning) return;
-  
-  // Only process frames when video is ready
-  if (video.readyState === video.HAVE_ENOUGH_DATA) {
-    try {
-      // Less aggressive frame skipping to ensure we don't miss codes
-      if (window.scanFrameCounter === undefined) {
-        window.scanFrameCounter = 0;
-      }
-      
-      window.scanFrameCounter++;
-      
-      // Process every other frame (simple but effective approach)
-      if (window.scanFrameCounter % 2 !== 0) {
-        requestAnimationFrame(ScanQRCode);
-        return;
-      }
-      
-      // Draw the video frame to the canvas
-      canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
-      
-      // Verify ZXing is available
-      if (typeof ZXing === 'undefined') {
-        updateScanStatus('ERROR');
-        loadZXing().catch(err => console.error("Failed to reload ZXing:", err));
-        requestAnimationFrame(ScanQRCode);
-        return;
-      }
-      
-      // Get image data
-      const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
-      
-      // Try to find QR code in the full image first (standard approach)
-      const fullImageResult = tryDecodeQR(imageData);
-      
-      // If full image detection failed, try with pre-processing
-      if (!fullImageResult) {
-        // Only apply preprocessing for better detection when standard approach fails
-        const enhancedData = enhanceImageForQR(imageData);
-        tryDecodeQR(enhancedData);
-      }
-      
-    } catch (error) {
-      console.error("Error in scan process:", error);
-      updateScanStatus('ERROR');
+    if (!scanning) return;
+    
+    // Only process frames when video is ready
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        try {
+            // OPTIMIZATION: Only process every other frame to reduce CPU usage
+            if (window.scanFrameCounter === undefined) {
+                window.scanFrameCounter = 0;
+            }
+            window.scanFrameCounter++;
+            if (window.scanFrameCounter % 2 !== 0) {
+                requestAnimationFrame(scanQRCode);
+                return;
+            }
+            
+            // Draw the video frame to the canvas
+            canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+            
+            // Verify ZXing is available
+            if (typeof ZXing === 'undefined') {
+                updateScanStatus('ERROR');
+                loadZXing().catch(err => console.error("Failed to reload ZXing:", err));
+                requestAnimationFrame(scanQRCode);
+                return;
+            }
+            
+            // Get image data
+            const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+            const width = imageData.width;
+            const height = imageData.height;
+            
+            // Create a Uint8Array for ZXing
+            const data = new Uint8ClampedArray(width * height);
+            
+            // OPTIMIZATION: Downsampling - only process every other pixel
+            for (let i = 0; i < height; i += 2) {
+                for (let j = 0; j < width; j += 2) {
+                    const idx = (i * width + j) * 4;
+                    // Fast grayscale calculation
+                    const gray = (imageData.data[idx] + imageData.data[idx + 1] + imageData.data[idx + 2]) / 3;
+                    data[(i/2) * (width/2) + (j/2)] = gray;
+                }
+            }
+            
+            try {
+                // Use ZXing to decode QR code
+                const source = new ZXing.RGBLuminanceSource(data, width/2, height/2);
+                const binarizer = new ZXing.HybridBinarizer(source);
+                const bitmap = new ZXing.BinaryBitmap(binarizer);
+                const reader = new ZXing.MultiFormatReader(); // Use MultiFormatReader to detect multiple QR codes
+                
+                // Store detected QR codes
+                const detectedCodes = [];
+                
+                try {
+                    // Try to find all QR codes in the image
+                    const results = reader.decodeMultiple(bitmap);
+                    
+                    if (results && results.length > 0) {
+                        results.forEach(result => {
+                            detectedCodes.push({
+                                data: result.getText(),
+                                location: result.getResultPoints()
+                            });
+                        });
+                    }
+                } catch (multiError) {
+                    // If multiple detection fails, try single detection
+                    try {
+                        const qrReader = new ZXing.QRCodeReader();
+                        const result = qrReader.decode(bitmap);
+                        
+                        if (result) {
+                            detectedCodes.push({
+                                data: result.getText(),
+                                location: result.getResultPoints()
+                            });
+                        }
+                    } catch (singleError) {
+                        // No QR code found
+                    }
+                }
+                
+                // Handle detected QR codes
+                if (detectedCodes.length > 0) {
+                    // Draw green rectangles around all detected QR codes
+                    drawQRCodeHighlights(detectedCodes);
+                    
+                    // Process each detected QR code
+                    detectedCodes.forEach(code => {
+                        handleQRCode(code);
+                    });
+                }
+                
+                if (detectedCodes.length === 0) {
+                    // No QR code found - this is normal, continue scanning
+                    updateScanStatus('SCANNING');
+                }
+                
+            } catch (error) {
+                console.error("Error in QR decoding:", error);
+                updateScanStatus('ERROR');
+            }
+            
+        } catch (error) {
+            console.error("Error in scan process:", error);
+            updateScanStatus('ERROR');
+        }
+    } else {
+        updateScanStatus('WAITING');
     }
-  } else {
-    updateScanStatus('WAITING');
-  }
-  
-  // Continue scanning
-  requestAnimationFrame(ScanQRCode);
+    
+    // Continue scanning
+    requestAnimationFrame(scanQRCode);
 }
+// New function to draw highlights around detected QR codes
+function drawQRCodeHighlights(detectedCodes) {
+    if (!canvasElement || !canvas || detectedCodes.length === 0) return;
+    
+    // Make sure the canvas is visible for highlighting
+    canvasElement.style.display = 'block';
+    canvasElement.style.opacity = '1';
+    
+    // Save original canvas state
+    canvas.save();
+    
+    // Draw rectangles for each detected QR code
+    detectedCodes.forEach(code => {
+        if (!code.location || code.location.length < 3) return;
+        
+        // Convert QR points to rectangle
+        const points = code.location;
+        let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
+        
+        // Find the bounding rectangle of the QR code
+        for (let i = 0; i < points.length; i++) {
+            const point = points[i];
+            // Scale point coordinates from downsampled detection to full image
+            const x = point.getX() * 2;  // Multiply by 2 because we downsampled by factor of 2
+            const y = point.getY() * 2;
+            
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+        }
+        
+        // Add padding around the QR code
+        const padding = 10;
+        minX = Math.max(0, minX - padding);
+        minY = Math.max(0, minY - padding);
+        maxX = Math.min(canvasElement.width, maxX + padding);
+        maxY = Math.min(canvasElement.height, maxY + padding);
+        
+        // Draw green rectangle around QR code
+        canvas.strokeStyle = 'rgba(0, 255, 0, 0.7)';  // Semi-transparent green
+        canvas.lineWidth = 4;
+        canvas.beginPath();
+        canvas.rect(minX, minY, maxX - minX, maxY - minY);
+        canvas.stroke();
+        
+        // Add small info label
+        canvas.fillStyle = 'rgba(0, 255, 0, 0.7)';
+        canvas.fillRect(minX, minY - 20, 80, 20);
+        canvas.fillStyle = 'black';
+        canvas.font = '12px Arial';
+        canvas.fillText('QR Detected', minX + 5, minY - 5);
+    });
+    
+    // Restore canvas state
+    canvas.restore();
+    
+    // Reset canvas display after a short delay to avoid visual artifacts
+    setTimeout(() => {
+        // Don't hide the canvas, just redraw the video frame next cycle
+        canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+    }, 100);
+}
+
 // Helper function to handle detected QR codes
 function handleQRCode(code) {
 if (!code.data || code.data.trim() === '') {
@@ -2618,158 +2691,15 @@ updateScanStatus('DUPLICATE');
 }
 }
 }
-function hasPotentialFinderPattern(imageData, startX, startY, size) {
-const width = imageData.width;
-const endX = Math.min(startX + size, width);
-const endY = Math.min(startY + size, imageData.height);
-// Calculate grid of 5x5 cells to check for finder pattern
-const cellSize = Math.floor(size / 5);
-if (cellSize < 1) return false;
-const grid = [];
-// Sample the 5x5 grid to look for finder pattern
-for (let gy = 0; gy < 5; gy++) {
-grid[gy] = [];
-for (let gx = 0; gx < 5; gx++) {
-const cellX = startX + gx * cellSize;
-const cellY = startY + gy * cellSize;
-// Calculate average darkness of this cell
-let sum = 0;
-let count = 0;
-for (let y = cellY; y < cellY + cellSize && y < endY; y++) {
-for (let x = cellX; x < cellX + cellSize && x < endX; x++) {
-const idx = (y * width + x) * 4;
-const gray = (imageData.data[idx] + imageData.data[idx + 1] + imageData.data[idx + 2]) / 3;
-sum += gray;
-count++;
-}
-}
-// Cell is dark if average is below 128
-grid[gy][gx] = (count > 0) ? (sum / count < 128) : false;
-}
-}
-// Check for finder pattern: 
-// - Outer border should be all dark
-// - Second layer should be all light
-// - Middle should be dark
-// Check outer border (row 0, row 4, col 0, col 4)
-let outerBorderDark = true;
-for (let i = 0; i < 5; i++) {
-if (!grid[0][i] || !grid[4][i] || !grid[i][0] || !grid[i][4]) {
-outerBorderDark = false;
-break;
-}
-}
-// Check second layer (row 1, row 3, col 1, col 3) - should be white
-let secondLayerLight = true;
-for (let i = 1; i < 4; i++) {
-if (grid[1][i] || grid[3][i] || grid[i][1] || grid[i][3]) {
-secondLayerLight = false;
-break;
-}
-}
-// Check middle (2,2) - should be dark
-const middleDark = grid[2][2];
-// Return true if pattern matches
-return outerBorderDark && secondLayerLight && middleDark;
-}
-function mergeOverlappingRegions(regions) {
-if (regions.length <= 1) return regions;
-const merged = [];
-regions.sort((a, b) => a.x - b.x);
-let current = regions[0];
-for (let i = 1; i < regions.length; i++) {
-const region = regions[i];
-// Check if regions overlap
-if (
-region.x <= current.x + current.width &&
-region.x + region.width >= current.x &&
-region.y <= current.y + current.height &&
-region.y + region.height >= current.y
-) {
-// Merge regions
-current = {
-x: Math.min(current.x, region.x),
-y: Math.min(current.y, region.y),
-width: Math.max(current.x + current.width, region.x + region.width) - Math.min(current.x, region.x),
-height: Math.max(current.y + current.height, region.y + region.height) - Math.min(current.y, region.y)
-};
-} else {
-merged.push(current);
-current = region;
-}
-}
-merged.push(current);
-return merged;
-}
-function scaleImageData(imageData, scale) {
-const srcWidth = imageData.width;
-const srcHeight = imageData.height;
-const destWidth = Math.floor(srcWidth * scale);
-const destHeight = Math.floor(srcHeight * scale);
-// Create a temporary canvas for scaling
-const canvas = document.createElement('canvas');
-canvas.width = destWidth;
-canvas.height = destHeight;
-const ctx = canvas.getContext('2d');
-// Create new ImageData and draw the scaled version
-const scaledImgData = ctx.createImageData(destWidth, destHeight);
-// Put the original data into a temporary canvas
-const tempCanvas = document.createElement('canvas');
-tempCanvas.width = srcWidth;
-tempCanvas.height = srcHeight;
-const tempCtx = tempCanvas.getContext('2d');
-tempCtx.putImageData(imageData, 0, 0);
-// Use canvas scaling for better quality
-ctx.drawImage(tempCanvas, 0, 0, srcWidth, srcHeight, 0, 0, destWidth, destHeight);
-// Get the scaled image data
-return ctx.getImageData(0, 0, destWidth, destHeight);
-}
-function zoomRegion(regionData, zoomFactor) {
-const width = regionData.width;
-const height = regionData.height;
-const zoomedWidth = Math.floor(width / zoomFactor);
-const zoomedHeight = Math.floor(height / zoomFactor);
-// Center the zoomed region
-const startX = Math.floor((width - zoomedWidth) / 2);
-const startY = Math.floor((height - zoomedHeight) / 2);
-// Create a temporary canvas for scaling
-const canvas = document.createElement('canvas');
-canvas.width = width;
-canvas.height = height;
-const ctx = canvas.getContext('2d');
-// Put the original data into the canvas
-ctx.putImageData(regionData, 0, 0);
-// Create an enlarged canvas for the zoomed result
-const zoomedCanvas = document.createElement('canvas');
-zoomedCanvas.width = width;
-zoomedCanvas.height = height;
-const zoomedCtx = zoomedCanvas.getContext('2d');
-// Draw the zoomed portion
-zoomedCtx.drawImage(
-canvas, 
-startX, startY, zoomedWidth, zoomedHeight, 
-0, 0, width, height
-);
-// Get the zoomed image data
-return zoomedCtx.getImageData(0, 0, width, height);
-}
 // OPTIMIZATION: Simple detection of dark regions that might contain QR codes
 function detectPotentialQRRegions(imageData) {
+// This is a simplified version - a real implementation would be more sophisticated
 const regions = [];
-const width = imageData.width;
-const height = imageData.height;
-// More intelligent block size based on image dimensions
-const blockSize = Math.ceil(Math.min(width, height) / 20);
-// Step size is smaller for more thorough scanning
-const stepSize = Math.max(blockSize / 2, 10);
-// Lower threshold for better sensitivity
-const threshold = 80;
-// Detect dark-to-light transitions (potential finder patterns)
-for (let y = 0; y < height - blockSize; y += stepSize) {
-for (let x = 0; x < width - blockSize; x += stepSize) {
-// Check if this region has QR finder pattern characteristics
-if (hasPotentialFinderPattern(imageData, x, y, blockSize)) {
-// Create a region of interest around this potential finder pattern
+const blockSize = 20;
+const threshold = 100;
+for (let y = 0; y < imageData.height; y += blockSize) {
+for (let x = 0; x < imageData.width; x += blockSize) {
+if (isDarkRegion(imageData, x, y, blockSize, threshold)) {
 regions.push({
 x: Math.max(0, x - blockSize),
 y: Math.max(0, y - blockSize),
@@ -2779,8 +2709,7 @@ height: blockSize * 3
 }
 }
 }
-// Merge overlapping regions
-return mergeOverlappingRegions(regions);
+return regions;
 }
 // Helper to check if a region is dark (potential QR code)
 function isDarkRegion(imageData, startX, startY, size, threshold) {
@@ -2841,22 +2770,14 @@ canvas.width = width;
 canvas.height = height;
 // Create a new ImageData object for the region
 const regionImgData = ctx.createImageData(width, height);
-// Copy pixel data with enhanced contrast
+// Copy pixel data
 for (let y = 0; y < height; y++) {
 for (let x = 0; x < width; x++) {
 const sourceIdx = ((region.y + y) * imageData.width + (region.x + x)) * 4;
 const destIdx = (y * width + x) * 4;
-// Apply local contrast enhancement
-const r = imageData.data[sourceIdx];
-const g = imageData.data[sourceIdx + 1];
-const b = imageData.data[sourceIdx + 2];
-// Simple grayscale conversion
-const gray = (r * 0.299 + g * 0.587 + b * 0.114);
-// Apply basic contrast stretching
-const enhancedGray = Math.max(0, Math.min(255, (gray - 128) * 1.5 + 128));
-regionImgData.data[destIdx] = enhancedGray;
-regionImgData.data[destIdx + 1] = enhancedGray;
-regionImgData.data[destIdx + 2] = enhancedGray;
+regionImgData.data[destIdx] = imageData.data[sourceIdx];
+regionImgData.data[destIdx + 1] = imageData.data[sourceIdx + 1];
+regionImgData.data[destIdx + 2] = imageData.data[sourceIdx + 2];
 regionImgData.data[destIdx + 3] = imageData.data[sourceIdx + 3];
 }
 }
@@ -2957,131 +2878,6 @@ processingBatch = false;
 }
 }
 //========================================================================================================== QR DATA PROCESSING ========//
-function preprocessImageForQRDetection(imageData) {
-const width = imageData.width;
-const height = imageData.height;
-const processedData = new Uint8ClampedArray(width * height * 4);
-// Create a copy of the original data
-for (let i = 0; i < imageData.data.length; i++) {
-processedData[i] = imageData.data[i];
-}
-// Apply adaptive thresholding for better contrast
-const blockSize = Math.ceil(Math.min(width, height) / 16); // Adaptive block size
-const C = 7; // Constant subtracted from mean
-for (let y = 0; y < height; y++) {
-for (let x = 0; x < width; x++) {
-// Calculate local mean
-let sum = 0;
-let count = 0;
-for (let dy = -blockSize/2; dy < blockSize/2; dy++) {
-for (let dx = -blockSize/2; dx < blockSize/2; dx++) {
-const nx = x + dx;
-const ny = y + dy;
-if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-const idx = (ny * width + nx) * 4;
-// Fast grayscale calculation
-const gray = (imageData.data[idx] + imageData.data[idx + 1] + imageData.data[idx + 2]) / 3;
-sum += gray;
-count++;
-}
-}
-}
-const mean = sum / count;
-const idx = (y * width + x) * 4;
-// Fast grayscale of current pixel
-const gray = (imageData.data[idx] + imageData.data[idx + 1] + imageData.data[idx + 2]) / 3;
-// Apply threshold (if pixel is less than mean-C, set to black, otherwise white)
-const value = gray < (mean - C) ? 0 : 255;
-processedData[idx] = value;     // R
-processedData[idx + 1] = value; // G
-processedData[idx + 2] = value; // B
-// Keep alpha the same
-processedData[idx + 3] = imageData.data[idx + 3];
-}
-}
-// Create new ImageData with processed pixels
-return new ImageData(processedData, width, height);
-}
-function enhanceImageForQR(imageData) {
-  const width = imageData.width;
-  const height = imageData.height;
-  const enhancedData = new ImageData(
-    new Uint8ClampedArray(imageData.data),
-    width,
-    height
-  );
-  
-  // Increase contrast to make QR codes more visible
-  for (let i = 0; i < height; i++) {
-    for (let j = 0; j < width; j++) {
-      const idx = (i * width + j) * 4;
-      // Convert to grayscale with proper weighting
-      const gray = (
-        enhancedData.data[idx] * 0.299 + 
-        enhancedData.data[idx + 1] * 0.587 + 
-        enhancedData.data[idx + 2] * 0.114
-      );
-      
-      // Apply contrast enhancement
-      const factor = 1.5; // Contrast factor
-      const newVal = Math.min(255, Math.max(0, factor * (gray - 128) + 128));
-      
-      // Apply enhanced value
-      enhancedData.data[idx] = newVal;
-      enhancedData.data[idx + 1] = newVal;
-      enhancedData.data[idx + 2] = newVal;
-      // Alpha remains unchanged
-    }
-  }
-  
-  return enhancedData;
-}
-function tryDecodeQR(imageData) {
-  try {
-    const width = imageData.width;
-    const height = imageData.height;
-    
-    // Create a grayscale array for ZXing
-    const data = new Uint8ClampedArray(width * height);
-    
-    // Convert to grayscale for ZXing
-    for (let i = 0; i < height; i++) {
-      for (let j = 0; j < width; j++) {
-        const idx = (i * width + j) * 4;
-        data[i * width + j] = (
-          imageData.data[idx] + 
-          imageData.data[idx + 1] + 
-          imageData.data[idx + 2]
-        ) / 3;
-      }
-    }
-    
-    // Use ZXing to decode QR code
-    const source = new ZXing.RGBLuminanceSource(data, width, height);
-    const binarizer = new ZXing.HybridBinarizer(source);
-    const bitmap = new ZXing.BinaryBitmap(binarizer);
-    const reader = new ZXing.QRCodeReader();
-    
-    // Use hints to improve detection
-    const hints = new Map();
-    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-    
-    const result = reader.decode(bitmap, hints);
-    
-    if (result) {
-      handleQRCode({
-        data: result.getText(),
-        location: result.getResultPoints()
-      });
-      highlightQR(result.getResultPoints());
-      return true;
-    }
-  } catch (notFoundError) {
-    // QR code not found - this is normal, continue scanning
-  }
-  
-  return false;
-}
 // Process scanned QR code 
 function processScannedCode(data) {
 // Additional validation to ensure we're not adding empty codes
