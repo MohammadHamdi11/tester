@@ -26,10 +26,16 @@ event.waitUntil(
 caches.open(CACHE_NAME)
 .then(cache => {
 console.log('[Service Worker] Cache opened, adding all URLs to cache');
+// First cache the offline page as highest priority
+return cache.add(OFFLINE_URL)
+.then(() => {
+console.log('[Service Worker] Offline page cached successfully');
+// Then cache the rest of the assets
 return cache.addAll(urlsToCache)
 .then(() => {
 console.log('[Service Worker] All required resources have been cached');
 return self.skipWaiting();
+});
 });
 })
 .catch(err => {
@@ -96,7 +102,20 @@ return response;
 })
 .catch(() => {
 console.log('[Service Worker] Serving offline page for navigation request');
-return caches.match(OFFLINE_URL);
+return caches.match(OFFLINE_URL)
+.then(offlineResponse => {
+// Make sure we always return something valid
+if (offlineResponse) {
+return offlineResponse;
+}
+return new Response('Application is offline', {
+status: 503,
+statusText: 'Service Unavailable',
+headers: new Headers({
+'Content-Type': 'text/html'
+})
+});
+});
 })
 );
 } else if (event.request.destination === 'image' || 
@@ -121,7 +140,32 @@ cache.put(event.request, responseToCache);
 });
 }
 return response;
+})
+.catch(error => {
+console.error('[Service Worker] Fetch failed for asset:', error);
+// Return a simple placeholder for images if needed
+if (event.request.destination === 'image') {
+return new Response('', {
+status: 200,
+headers: new Headers({
+'Content-Type': 'image/svg+xml',
+'Cache-Control': 'no-store'
+})
 });
+}
+// For CSS/JS, return empty response with appropriate content type
+return new Response('/* Offline fallback */', {
+status: 200,
+headers: new Headers({
+'Content-Type': event.request.url.endsWith('.css') ? 'text/css' : 'application/javascript',
+'Cache-Control': 'no-store'
+})
+});
+});
+})
+.catch(error => {
+console.error('[Service Worker] Cache match error:', error);
+return new Response('', { status: 500 });
 })
 );
 } else {
@@ -139,7 +183,7 @@ cache.put(event.request, responseToCache);
 }
 return response;
 })
-.catch(() => {
+.catch(error => {
 console.log('[Service Worker] Fetch failed, trying cache for:', event.request.url);
 // If network fetch fails, try the cache
 return caches.match(event.request)
@@ -147,11 +191,25 @@ return caches.match(event.request)
 if (cachedResponse) {
 return cachedResponse;
 }
-// If resource isn't in cache, return empty response
-return new Response('', {
-status: 408,
-statusText: 'Request timed out.'
+// For JSON files, return an empty but valid JSON response
+if (event.request.url.endsWith('.json')) {
+return new Response('{}', {
+status: 200,
+headers: new Headers({
+'Content-Type': 'application/json',
+'Cache-Control': 'no-store'
+})
 });
+}
+// For other resources, return empty response with appropriate status
+return new Response('Resource unavailable offline', {
+status: 503,
+statusText: 'Service Unavailable'
+});
+})
+.catch(cacheError => {
+console.error('[Service Worker] Cache match error:', cacheError);
+return new Response('', { status: 500 });
 });
 })
 );
