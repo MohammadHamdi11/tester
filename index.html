@@ -1721,14 +1721,6 @@ console.log("DOM fully loaded");
 loadSessionsFromStorage();
 checkForRecoverableSession();
 updateHistoryView();
-    // Initialize haptic feedback
-    initializeHapticFeedback();
-document.addEventListener('DOMContentLoaded', function() {
-// Initialize the checklist module
-if (document.getElementById('startChecklistSessionBtn')) {
-initializeChecklistModule();
-}
-});
 // Initialize backup tab
 updateConnectionStatus();
 loadGitHubToken();
@@ -2198,39 +2190,6 @@ locationInput.focus();
 }
 }
 //========================================================================================================== CAMERA & SCANNER FUNCTIONS ========//
-// Test and initialize haptic feedback capabilities
-function initializeHapticFeedback() {
-    // Check if the Vibration API is supported
-    const supportsVibration = 'vibrate' in navigator;
-    
-    // Check if device is iOS (where standard vibration isn't supported)
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    
-    if (supportsVibration) {
-        console.log("Device supports standard vibration API");
-        // Test with a short vibration
-        navigator.vibrate(1);
-    } else if (isIOS) {
-        console.log("iOS device detected - will use audio haptic fallback");
-        // We'll try the audio fallback when needed
-    } else {
-        console.log("Haptic feedback not available on this device");
-    }
-    
-    // Add this to the existing log
-    addScanLogEntry(`Haptic feedback ${supportsVibration || isIOS ? 'enabled' : 'not available'}`, 'info');
-}
-// Vibration 
-function provideHapticFeedback(duration = 100) {
-    // Check if vibration is supported
-    if (navigator.vibrate) {
-        // Trigger vibration with specified duration in milliseconds
-        navigator.vibrate(duration);
-        console.log("Vibration feedback triggered:", duration + "ms");
-    } else {
-        console.log("Vibration API not supported on this device");
-    }
-}
 // Improved camera initialization function
 async function startCamera() {
 try {
@@ -2550,49 +2509,43 @@ requestAnimationFrame(scanQRCode);
 }
 // Helper function to handle detected QR codes
 function handleQRCode(code) {
-    if (!code.data || code.data.trim() === '') {
-        return;
-    }
-    
-    // Check if this code is already in our session
-    const alreadyScannedInSession = activeSession.scans.some(scan => scan.content === code.data);
-    
-    // Check if this code was recently scanned (to prevent rapid duplicates)
-    if (!lastScannedCodes.has(code.data) && !alreadyScannedInSession) {
-        // Add to recent scans set and set timeout to remove
-        lastScannedCodes.add(code.data);
-        setTimeout(() => {
-            lastScannedCodes.delete(code.data);
-        }, 3000); // Prevent duplicate scans for 3 seconds
-        
-        // Highlight the QR code
-        highlightQR(code.location);
-        
-        if (batchModeActive) {
-            // Add to batch buffer
-            if (!batchBuffer.has(code.data)) {
-                batchBuffer.add(code.data);
-                updateBatchIndicator();
-                // Visual feedback
-                updateScanStatus(`Added to batch: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
-                addScanLogEntry(`Queued: ${code.data.substring(0, 15)}${code.data.length > 15 ? '...' : ''}`, 'info');
-                // Play sound and vibrate
-                playSuccessSound();
-                provideHapticFeedback(50); // Short vibration for batch addition
-            }
-        } else {
-            // Process immediately if not in batch mode
-            playSuccessSound();
-            provideHapticFeedback(100); // Medium vibration for individual scan
-            processScannedCode(code.data);
-        }
-    } else if (alreadyScannedInSession) {
-        // Already in session
-        updateScanStatus(`Already scanned: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
-    } else {
-        // Recent duplicate
-        updateScanStatus(`Duplicate scan: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
-    }
+if (!code.data || code.data.trim() === '') {
+return;
+}
+// Check if this code is already in our session
+const alreadyScannedInSession = activeSession.scans.some(scan => scan.content === code.data);
+// Check if this code was recently scanned (to prevent rapid duplicates)
+if (!lastScannedCodes.has(code.data) && !alreadyScannedInSession) {
+// Add to recent scans set and set timeout to remove
+lastScannedCodes.add(code.data);
+setTimeout(() => {
+lastScannedCodes.delete(code.data);
+}, 3000); // Prevent duplicate scans for 3 seconds
+// Highlight the QR code
+highlightQR(code.location);
+if (batchModeActive) {
+// Add to batch buffer
+if (!batchBuffer.has(code.data)) {
+batchBuffer.add(code.data);
+updateBatchIndicator();
+// Visual feedback
+updateScanStatus(`Added to batch: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
+addScanLogEntry(`Queued: ${code.data.substring(0, 15)}${code.data.length > 15 ? '...' : ''}`, 'info');
+// Play a shorter sound for batch additions
+playSuccessSound();
+}
+} else {
+// Process immediately if not in batch mode
+playSuccessSound();
+processScannedCode(code.data);
+}
+} else if (alreadyScannedInSession) {
+// Already in session
+updateScanStatus(`Already scanned: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
+} else {
+// Recent duplicate
+updateScanStatus(`Duplicate scan: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
+}
 }
 // OPTIMIZATION: Simple detection of dark regions that might contain QR codes
 function detectPotentialQRRegions(imageData) {
@@ -2744,38 +2697,31 @@ indicator.style.backgroundColor = 'rgba(0,128,0,0.7)';
 }
 // Process all codes in the batch buffer
 function processBatch() {
-    if (processingBatch || batchBuffer.size === 0) return;
-    processingBatch = true;
-    try {
-        const batchSize = batchBuffer.size;
-        // Show batch processing notification
-        updateScanStatus(`Processing batch of ${batchSize} codes...`);
-        
-        // Process each code in the buffer
-        batchBuffer.forEach(code => {
-            processScannedCode(code);
-        });
-        
-        // Clear the buffer after processing
-        batchBuffer.clear();
-        updateBatchIndicator();
-        
-        // Confirmation of batch processing
-        updateScanStatus(`✅ Processed batch of ${batchSize} codes successfully`);
-        addScanLogEntry(`Processed batch of ${batchSize} codes`, 'success');
-        
-        // Play a success sound for the whole batch
-        playSuccessSound();
-        
-        // Stronger vibration pattern for batch completion (vibrate-pause-vibrate)
-        provideHapticFeedback([100, 50, 150]);
-    } catch (error) {
-        console.error("Error processing batch:", error);
-        updateScanStatus(`Error processing batch: ${error.message}`);
-        addScanLogEntry(`Batch processing error: ${error.message}`, 'error');
-    } finally {
-        processingBatch = false;
-    }
+if (processingBatch || batchBuffer.size === 0) return;
+processingBatch = true;
+try {
+const batchSize = batchBuffer.size;
+// Show batch processing notification
+updateScanStatus(`Processing batch of ${batchSize} codes...`);
+// Process each code in the buffer
+batchBuffer.forEach(code => {
+processScannedCode(code);
+});
+// Clear the buffer after processing
+batchBuffer.clear();
+updateBatchIndicator();
+// Confirmation of batch processing
+updateScanStatus(`✅ Processed batch of ${batchSize} codes successfully`);
+addScanLogEntry(`Processed batch of ${batchSize} codes`, 'success');
+// Play a success sound for the whole batch
+playSuccessSound();
+} catch (error) {
+console.error("Error processing batch:", error);
+updateScanStatus(`Error processing batch: ${error.message}`);
+addScanLogEntry(`Batch processing error: ${error.message}`, 'error');
+} finally {
+processingBatch = false;
+}
 }
 //========================================================================================================== QR DATA PROCESSING ========//
 // Process scanned QR code 
@@ -3682,6 +3628,13 @@ console.error("Error saving checklist Excel file locally:", error);
 alert("Error exporting file: " + error.message);
 }
 }
+// Add this to document ready event
+document.addEventListener('DOMContentLoaded', function() {
+// Initialize the checklist module
+if (document.getElementById('startChecklistSessionBtn')) {
+initializeChecklistModule();
+}
+});
 //========================================================================================================== SESSION STORAGE & RECOVERY ========//
 // Save active session to local storage
 function saveActiveSession() {
