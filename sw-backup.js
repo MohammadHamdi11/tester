@@ -17,7 +17,7 @@ const urlsToCache = [
 './web-app-manifest-512x512.png',
 './apple-touch-icon.png',
 './offline.html',
-'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
+'./xlsx.full.min.js'
 ];
 // Install event - cache assets
 self.addEventListener('install', event => {
