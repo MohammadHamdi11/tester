@@ -203,6 +203,20 @@ max-height: 500px; /* Adjust based on content size */
 .signin-contact-info hr {
 margin: 10px 0;
 }
+.location-dropdown {
+width: 100%;
+padding: 10px;
+border: 1px solid #ccc;
+border-radius: 4px;
+font-size: 16px;
+margin-bottom: 15px;
+background-color: white;
+}
+.location-dropdown:focus {
+outline: none;
+border-color: #007bff;
+box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
 /* Card Styles */
 .card {
 background-color: var(--card-bg);
@@ -980,7 +994,27 @@ max-height: 250px;
 <h2>Start New Session</h2>
 <div class="form-group">
 <p>Enter a location for this scanning session:</p>
-<input type="text" id="locationInput" placeholder="e.g., Morgue, Histology Lab, Biochemistry Lecture Hall">
+<select id="locationInput" class="location-dropdown">
+<option value="" disabled selected>Select a location...</option>
+<option value="Morgue">Morgue</option>
+<option value="Anatomy Lecture Hall">Anatomy Lecture Hall</option>
+<option value="Histology Lab">Histology Lab</option>
+<option value="Histology Lecture Hall">Histology Lecture Hall</option>
+<option value="Biochemistry Lab">Biochemistry Lab</option>
+<option value="Biochemistry Lecture Hall">Biochemistry Lecture Hall</option>
+<option value="Physiology Lab">Physiology Lab</option>
+<option value="Physiology Lecture Hall">Physiology Lecture Hall</option>
+<option value="Microbiology Lab">Microbiology Lab</option>
+<option value="Microbiology Lecture Hall">Microbiology Lecture Hall</option>
+<option value="Parasitology Lab">Parasitology Lab</option>
+<option value="Parasitology Lecture Hall">Parasitology Lecture Hall</option>
+<option value="Pathology Lab">Pathology Lab</option>
+<option value="Pathology Lecture Hall">Pathology Lecture Hall</option>
+<option value="Pharmacology Lab">Pharmacology Lab</option>
+<option value="Pharmacology Lecture Hall">Pharmacology Lecture Hall</option>
+<option value="Building 'A' Lecture Hall">Building 'A' Lecture Hall</option>
+<option value="Building 'B' Lecture Hall">Building 'B' Lecture Hall</option>
+</select>
 </div>
 <button id="confirmSessionBtn" class="button">Start Now</button>
 </div>
@@ -1004,7 +1038,27 @@ max-height: 250px;
 <h2>Start New Session</h2>
 <div class="form-group">
 <p>Enter a location for this scanning session:</p>
-<input type="text" id="checklistLocationInput" placeholder="e.g., Morgue, Histology Lab, Biochemistry Lecture Hall">
+<select id="checklistLocationInput" class="location-dropdown">
+<option value="" disabled selected>Select a location...</option>
+<option value="Morgue">Morgue</option>
+<option value="Anatomy Lecture Hall">Anatomy Lecture Hall</option>
+<option value="Histology Lab">Histology Lab</option>
+<option value="Histology Lecture Hall">Histology Lecture Hall</option>
+<option value="Biochemistry Lab">Biochemistry Lab</option>
+<option value="Biochemistry Lecture Hall">Biochemistry Lecture Hall</option>
+<option value="Physiology Lab">Physiology Lab</option>
+<option value="Physiology Lecture Hall">Physiology Lecture Hall</option>
+<option value="Microbiology Lab">Microbiology Lab</option>
+<option value="Microbiology Lecture Hall">Microbiology Lecture Hall</option>
+<option value="Parasitology Lab">Parasitology Lab</option>
+<option value="Parasitology Lecture Hall">Parasitology Lecture Hall</option>
+<option value="Pathology Lab">Pathology Lab</option>
+<option value="Pathology Lecture Hall">Pathology Lecture Hall</option>
+<option value="Pharmacology Lab">Pharmacology Lab</option>
+<option value="Pharmacology Lecture Hall">Pharmacology Lecture Hall</option>
+<option value="Building 'A' Lecture Hall">Building 'A' Lecture Hall</option>
+<option value="Building 'B' Lecture Hall">Building 'B' Lecture Hall</option>
+</select>
 </div>
 <div class="modal-actions">
 <button id="confirmChecklistBtn" class="button">Start Session</button>
@@ -2036,7 +2090,7 @@ sessionModal.style.display = 'none';
 confirmSessionBtn.addEventListener('click', () => {
 const location = locationInput.value.trim();
 if (!location) {
-alert('Please enter a location');
+alert('Please select a location');
 return;
 }
 // Hide modal
@@ -2179,6 +2233,7 @@ if (typeof ZXing === 'undefined') {
 loadZXing()
 .then(() => {
 sessionModal.style.display = 'block';
+// Set focus on the dropdown
 locationInput.focus();
 })
 .catch(() => {
@@ -2186,6 +2241,7 @@ alert("Failed to load QR scanning library. Please check if zxing.min.js is in th
 });
 } else {
 sessionModal.style.display = 'block';
+// Set focus on the dropdown
 locationInput.focus();
 }
 }
