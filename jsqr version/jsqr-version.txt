@@ -1014,7 +1014,7 @@ max-height: 250px;
 <!-- Script for QR Code Scanning -->
 <script src="https://unpkg.com/@zxing/library@latest"></script>
 <!-- Script for Excel Export -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="xlsx.full.min.js"></script>
 <script>
 //========================================================================================================== SIGN IN AND AUTHENTICATION ========//
 // Authentication variables and functions
