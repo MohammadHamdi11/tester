@@ -1723,6 +1723,12 @@ checkForRecoverableSession();
 updateHistoryView();
     // Initialize haptic feedback
     initializeHapticFeedback();
+document.addEventListener('DOMContentLoaded', function() {
+// Initialize the checklist module
+if (document.getElementById('startChecklistSessionBtn')) {
+initializeChecklistModule();
+}
+});
 // Initialize backup tab
 updateConnectionStatus();
 loadGitHubToken();
@@ -2214,50 +2220,15 @@ function initializeHapticFeedback() {
     // Add this to the existing log
     addScanLogEntry(`Haptic feedback ${supportsVibration || isIOS ? 'enabled' : 'not available'}`, 'info');
 }
-// Add this function to your code - it handles vibration with fallback for iOS
-function provideHapticFeedback(strength = 'medium') {
-    try {
-        // Try standard vibration API first (works on Android, not on iOS)
-        if (navigator.vibrate) {
-            switch (strength) {
-                case 'light':
-                    navigator.vibrate(10);
-                    break;
-                case 'medium':
-                    navigator.vibrate([30, 20, 30]);
-                    break;
-                case 'strong':
-                    navigator.vibrate([50, 30, 50]);
-                    break;
-                default:
-                    navigator.vibrate(30);
-            }
-            console.log("Vibration feedback provided");
-        } else {
-            // iOS fallback - use audio to trigger haptic feedback
-            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-            if (isIOS) {
-                // Create a short, silent audio clip for iOS haptic response
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioContext.createOscillator();
-                const gainNode = audioContext.createGain();
-                
-                // Extremely short duration sound at high frequency (almost inaudible)
-                oscillator.frequency.value = 1;
-                gainNode.gain.value = 1;
-                
-                oscillator.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-                
-                oscillator.start();
-                oscillator.stop(audioContext.currentTime + 0.01);
-                console.log("iOS audio haptic fallback attempted");
-            } else {
-                console.log("Haptic feedback not available on this device");
-            }
-        }
-    } catch (error) {
-        console.warn("Error providing haptic feedback:", error);
+// Vibration 
+function provideHapticFeedback(duration = 100) {
+    // Check if vibration is supported
+    if (navigator.vibrate) {
+        // Trigger vibration with specified duration in milliseconds
+        navigator.vibrate(duration);
+        console.log("Vibration feedback triggered:", duration + "ms");
+    } else {
+        console.log("Vibration API not supported on this device");
     }
 }
 // Improved camera initialization function
@@ -2605,14 +2576,14 @@ function handleQRCode(code) {
                 // Visual feedback
                 updateScanStatus(`Added to batch: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
                 addScanLogEntry(`Queued: ${code.data.substring(0, 15)}${code.data.length > 15 ? '...' : ''}`, 'info');
-                // Play sound and add haptic feedback for batch additions
+                // Play sound and vibrate
                 playSuccessSound();
-                provideHapticFeedback('light'); // Light vibration for batch addition
+                provideHapticFeedback(50); // Short vibration for batch addition
             }
         } else {
             // Process immediately if not in batch mode
             playSuccessSound();
-            provideHapticFeedback('medium'); // Medium vibration for individual scan
+            provideHapticFeedback(100); // Medium vibration for individual scan
             processScannedCode(code.data);
         }
     } else if (alreadyScannedInSession) {
@@ -2796,8 +2767,8 @@ function processBatch() {
         // Play a success sound for the whole batch
         playSuccessSound();
         
-        // Provide strong haptic feedback for successful batch processing
-        provideHapticFeedback('strong');
+        // Stronger vibration pattern for batch completion (vibrate-pause-vibrate)
+        provideHapticFeedback([100, 50, 150]);
     } catch (error) {
         console.error("Error processing batch:", error);
         updateScanStatus(`Error processing batch: ${error.message}`);
@@ -3711,13 +3682,6 @@ console.error("Error saving checklist Excel file locally:", error);
 alert("Error exporting file: " + error.message);
 }
 }
-// Add this to document ready event
-document.addEventListener('DOMContentLoaded', function() {
-// Initialize the checklist module
-if (document.getElementById('startChecklistSessionBtn')) {
-initializeChecklistModule();
-}
-});
 //========================================================================================================== SESSION STORAGE & RECOVERY ========//
 // Save active session to local storage
 function saveActiveSession() {
