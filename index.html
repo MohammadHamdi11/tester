@@ -1161,9 +1161,6 @@ let batchModeActive = true; // Always enabled as requested
 let batchBuffer = new Set(); // Store unique QR codes during batch scanning
 let processingBatch = false; // Flag to prevent concurrent batch processing
 let batchProcessingInterval = null; // Interval for batch processing
-// Haptic feedback settings
-const HAPTIC_ENABLED_KEY = 'qrScannerHapticEnabled';
-let hapticFeedbackEnabled = true; // Enable haptic feedback by default
 //========================================================================================================== GITHUB BACKUP FUNCTIONS ========//
 // Check internet connection status
 function updateConnectionStatus() {
@@ -1719,80 +1716,64 @@ return true;
 }
 //========================================================================================================== INITIALIZATION ========//
 document.addEventListener('DOMContentLoaded', function() {
-    preloadSuccessSound();
-    console.log("DOM fully loaded");
-    loadSessionsFromStorage();
-    checkForRecoverableSession();
-    updateHistoryView();
-    
-    // Initialize backup tab
-    updateConnectionStatus();
-    loadGitHubToken();
-    updateLastBackupTimeDisplay();
-    
-    // Setup manual entry functionality
-    setupManualEntryButton();
-    
-    // Setup button event listeners
-    setupButtonEventListeners();
-    
-    // Load haptic feedback setting
-    loadHapticFeedbackSetting();
-    
-    // Enable auto-backup by default
-    if (localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) === null) {
-        localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, 'true');
-    }
-    
-    // Enable haptic feedback by default
-    if (localStorage.getItem(HAPTIC_ENABLED_KEY) === null) {
-        localStorage.setItem(HAPTIC_ENABLED_KEY, 'true');
-    }
-    
-    // Setup online/offline event listeners
-    window.addEventListener('online', () => {
-        updateConnectionStatus();
-        // Try auto-backup when connection is restored
-        tryAutoBackup();
-    });
-    window.addEventListener('offline', updateConnectionStatus);
-    
-    // Check if ZXing is already defined
-    if (typeof ZXing !== 'undefined') {
-        console.log("ZXing is already loaded from local file");
-    } else {
-        console.log("ZXing not detected, will attempt to load");
-        loadZXing()
-            .then(() => console.log("ZXing library loaded and ready"))
-            .catch(error => {
-                console.error("Error loading ZXing:", error);
-                alert("Failed to load QR code scanning library. Please check your files and try again.");
-            });
-    }
-    
-    // Load last backup session count
-    lastBackupSessions = parseInt(localStorage.getItem(LAST_BACKUP_SESSIONS_KEY) || '0');
-    
-    // Try auto-backup if online and there are new sessions
-    if (navigator.onLine) {
-        // Use setTimeout to ensure the app is fully loaded first
-        setTimeout(() => {
-            tryAutoBackup().then(success => {
-                if (success) {
-                    console.log("Initial auto-backup completed");
-                }
-            });
-        }, 2000);
-    }
-    
-    // Add beforeunload event listener to prevent accidental closing during active session
-    // This only handles scanner session - checklist module handles its own separately
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    
-    // Initialize the checklist module if the elements exist
-    if (document.getElementById('startChecklistSessionBtn')) {
-        initializeChecklistModule();
-    }
+preloadSuccessSound();
+console.log("DOM fully loaded");
+loadSessionsFromStorage();
+checkForRecoverableSession();
+updateHistoryView();
+    // Initialize haptic feedback
+    initializeHapticFeedback();
+// Initialize backup tab
+updateConnectionStatus();
+loadGitHubToken();
+updateLastBackupTimeDisplay();
+// Setup manual entry functionality
+setupManualEntryButton();
+// Setup button event listeners
+setupButtonEventListeners();
+// Enable auto-backup by default
+if (localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) === null) {
+localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, 'true');
+}
+// Setup online/offline event listeners
+window.addEventListener('online', () => {
+updateConnectionStatus();
+// Try auto-backup when connection is restored
+tryAutoBackup();
+});
+window.addEventListener('offline', updateConnectionStatus);
+// Check if ZXing is already defined
+if (typeof ZXing !== 'undefined') {
+console.log("ZXing is already loaded from local file");
+} else {
+console.log("ZXing not detected, will attempt to load");
+loadZXing()
+.then(() => console.log("ZXing library loaded and ready"))
+.catch(error => {
+console.error("Error loading ZXing:", error);
+alert("Failed to load QR code scanning library. Please check your files and try again.");
+});
+}
+// Load last backup session count
+lastBackupSessions = parseInt(localStorage.getItem(LAST_BACKUP_SESSIONS_KEY) || '0');
+// Try auto-backup if online and there are new sessions
+if (navigator.onLine) {
+// Use setTimeout to ensure the app is fully loaded first
+setTimeout(() => {
+tryAutoBackup().then(success => {
+if (success) {
+console.log("Initial auto-backup completed");
+}
+});
+}, 2000);
+}
+// Add beforeunload event listener to prevent accidental closing during active session
+// This only handles scanner session - checklist module handles its own separately
+window.addEventListener('beforeunload', handleBeforeUnload);
+// Initialize the checklist module if the elements exist
+if (document.getElementById('startChecklistSessionBtn')) {
+initializeChecklistModule();
+}
 });
 //================================================================================================================================
 // Load ZXing from local file
@@ -2211,73 +2192,72 @@ locationInput.focus();
 }
 }
 //========================================================================================================== CAMERA & SCANNER FUNCTIONS ========//
-// Function to load haptic feedback setting
-function loadHapticFeedbackSetting() {
-    const savedSetting = localStorage.getItem(HAPTIC_ENABLED_KEY);
-    if (savedSetting !== null) {
-        hapticFeedbackEnabled = savedSetting === 'true';
-    }
-    console.log(`Haptic feedback ${hapticFeedbackEnabled ? 'enabled' : 'disabled'}`);
-}
-// Function to provide haptic feedback
-function provideHapticFeedback(intensity = 'medium') {
-    // Skip if haptic feedback is disabled
-    if (!hapticFeedbackEnabled) {
-        console.log('Haptic feedback is disabled');
-        return;
+// Test and initialize haptic feedback capabilities
+function initializeHapticFeedback() {
+    // Check if the Vibration API is supported
+    const supportsVibration = 'vibrate' in navigator;
+    
+    // Check if device is iOS (where standard vibration isn't supported)
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    
+    if (supportsVibration) {
+        console.log("Device supports standard vibration API");
+        // Test with a short vibration
+        navigator.vibrate(1);
+    } else if (isIOS) {
+        console.log("iOS device detected - will use audio haptic fallback");
+        // We'll try the audio fallback when needed
+    } else {
+        console.log("Haptic feedback not available on this device");
     }
     
+    // Add this to the existing log
+    addScanLogEntry(`Haptic feedback ${supportsVibration || isIOS ? 'enabled' : 'not available'}`, 'info');
+}
+// Add this function to your code - it handles vibration with fallback for iOS
+function provideHapticFeedback(strength = 'medium') {
     try {
-        // Check if navigator.vibrate is supported (most Android devices)
-        if ('vibrate' in navigator) {
-            switch (intensity) {
+        // Try standard vibration API first (works on Android, not on iOS)
+        if (navigator.vibrate) {
+            switch (strength) {
                 case 'light':
-                    navigator.vibrate(10); // Short vibration
+                    navigator.vibrate(10);
                     break;
                 case 'medium':
-                    navigator.vibrate(25); // Medium vibration
+                    navigator.vibrate([30, 20, 30]);
                     break;
                 case 'strong':
-                    navigator.vibrate([25, 30, 40]); // Pattern for stronger feedback
-                    break;
-                case 'success':
-                    navigator.vibrate([25, 50, 25]); // Success pattern
+                    navigator.vibrate([50, 30, 50]);
                     break;
                 default:
-                    navigator.vibrate(25);
+                    navigator.vibrate(30);
             }
-            console.log(`Standard vibration feedback (${intensity}) provided`);
-        }
-        
-        // iOS-specific haptic feedback for PWAs
-        // This works on iOS 13+ on Safari when in standalone mode (PWA)
-        if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.selectionChange) {
-            // Trigger iOS haptic feedback
-            // This is a workaround that uses the text selection haptic
-            const selection = window.getSelection();
-            const range = document.createRange();
-            const tempElement = document.createElement('div');
-            tempElement.style.fontSize = '1px';
-            tempElement.style.position = 'absolute';
-            tempElement.style.left = '-9999px';
-            tempElement.innerText = ' ';
-            document.body.appendChild(tempElement);
-            
-            range.selectNodeContents(tempElement);
-            selection.removeAllRanges();
-            selection.addRange(range);
-            
-            // Trigger the haptic feedback
-            document.execCommand('copy'); 
-            
-            // Clean up
-            selection.removeAllRanges();
-            document.body.removeChild(tempElement);
-            
-            console.log('iOS haptic feedback attempted');
+            console.log("Vibration feedback provided");
+        } else {
+            // iOS fallback - use audio to trigger haptic feedback
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+            if (isIOS) {
+                // Create a short, silent audio clip for iOS haptic response
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                // Extremely short duration sound at high frequency (almost inaudible)
+                oscillator.frequency.value = 1;
+                gainNode.gain.value = 1;
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + 0.01);
+                console.log("iOS audio haptic fallback attempted");
+            } else {
+                console.log("Haptic feedback not available on this device");
+            }
         }
     } catch (error) {
-        console.warn('Haptic feedback failed:', error);
+        console.warn("Error providing haptic feedback:", error);
     }
 }
 // Improved camera initialization function
@@ -2625,16 +2605,14 @@ function handleQRCode(code) {
                 // Visual feedback
                 updateScanStatus(`Added to batch: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
                 addScanLogEntry(`Queued: ${code.data.substring(0, 15)}${code.data.length > 15 ? '...' : ''}`, 'info');
-                // Play a shorter sound for batch additions
+                // Play sound and add haptic feedback for batch additions
                 playSuccessSound();
-                // Add light haptic feedback for batch additions
-                provideHapticFeedback('light');
+                provideHapticFeedback('light'); // Light vibration for batch addition
             }
         } else {
             // Process immediately if not in batch mode
             playSuccessSound();
-            // Add medium haptic feedback for immediate scan
-            provideHapticFeedback('medium');
+            provideHapticFeedback('medium'); // Medium vibration for individual scan
             processScannedCode(code.data);
         }
     } else if (alreadyScannedInSession) {
@@ -2797,7 +2775,6 @@ indicator.style.backgroundColor = 'rgba(0,128,0,0.7)';
 function processBatch() {
     if (processingBatch || batchBuffer.size === 0) return;
     processingBatch = true;
-    
     try {
         const batchSize = batchBuffer.size;
         // Show batch processing notification
@@ -2819,9 +2796,8 @@ function processBatch() {
         // Play a success sound for the whole batch
         playSuccessSound();
         
-        // Add stronger haptic feedback for successful batch processing
-        provideHapticFeedback('success');
-        
+        // Provide strong haptic feedback for successful batch processing
+        provideHapticFeedback('strong');
     } catch (error) {
         console.error("Error processing batch:", error);
         updateScanStatus(`Error processing batch: ${error.message}`);
