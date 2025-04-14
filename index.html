@@ -1161,6 +1161,9 @@ let batchModeActive = true; // Always enabled as requested
 let batchBuffer = new Set(); // Store unique QR codes during batch scanning
 let processingBatch = false; // Flag to prevent concurrent batch processing
 let batchProcessingInterval = null; // Interval for batch processing
+// Haptic feedback settings
+const HAPTIC_ENABLED_KEY = 'qrScannerHapticEnabled';
+let hapticFeedbackEnabled = true; // Enable haptic feedback by default
 //========================================================================================================== GITHUB BACKUP FUNCTIONS ========//
 // Check internet connection status
 function updateConnectionStatus() {
@@ -1716,62 +1719,80 @@ return true;
 }
 //========================================================================================================== INITIALIZATION ========//
 document.addEventListener('DOMContentLoaded', function() {
-preloadSuccessSound();
-console.log("DOM fully loaded");
-loadSessionsFromStorage();
-checkForRecoverableSession();
-updateHistoryView();
-// Initialize backup tab
-updateConnectionStatus();
-loadGitHubToken();
-updateLastBackupTimeDisplay();
-// Setup manual entry functionality
-setupManualEntryButton();
-// Setup button event listeners
-setupButtonEventListeners();
-// Enable auto-backup by default
-if (localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) === null) {
-localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, 'true');
-}
-// Setup online/offline event listeners
-window.addEventListener('online', () => {
-updateConnectionStatus();
-// Try auto-backup when connection is restored
-tryAutoBackup();
-});
-window.addEventListener('offline', updateConnectionStatus);
-// Check if ZXing is already defined
-if (typeof ZXing !== 'undefined') {
-console.log("ZXing is already loaded from local file");
-} else {
-console.log("ZXing not detected, will attempt to load");
-loadZXing()
-.then(() => console.log("ZXing library loaded and ready"))
-.catch(error => {
-console.error("Error loading ZXing:", error);
-alert("Failed to load QR code scanning library. Please check your files and try again.");
-});
-}
-// Load last backup session count
-lastBackupSessions = parseInt(localStorage.getItem(LAST_BACKUP_SESSIONS_KEY) || '0');
-// Try auto-backup if online and there are new sessions
-if (navigator.onLine) {
-// Use setTimeout to ensure the app is fully loaded first
-setTimeout(() => {
-tryAutoBackup().then(success => {
-if (success) {
-console.log("Initial auto-backup completed");
-}
-});
-}, 2000);
-}
-// Add beforeunload event listener to prevent accidental closing during active session
-// This only handles scanner session - checklist module handles its own separately
-window.addEventListener('beforeunload', handleBeforeUnload);
-// Initialize the checklist module if the elements exist
-if (document.getElementById('startChecklistSessionBtn')) {
-initializeChecklistModule();
-}
+    preloadSuccessSound();
+    console.log("DOM fully loaded");
+    loadSessionsFromStorage();
+    checkForRecoverableSession();
+    updateHistoryView();
+    
+    // Initialize backup tab
+    updateConnectionStatus();
+    loadGitHubToken();
+    updateLastBackupTimeDisplay();
+    
+    // Setup manual entry functionality
+    setupManualEntryButton();
+    
+    // Setup button event listeners
+    setupButtonEventListeners();
+    
+    // Load haptic feedback setting
+    loadHapticFeedbackSetting();
+    
+    // Enable auto-backup by default
+    if (localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) === null) {
+        localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, 'true');
+    }
+    
+    // Enable haptic feedback by default
+    if (localStorage.getItem(HAPTIC_ENABLED_KEY) === null) {
+        localStorage.setItem(HAPTIC_ENABLED_KEY, 'true');
+    }
+    
+    // Setup online/offline event listeners
+    window.addEventListener('online', () => {
+        updateConnectionStatus();
+        // Try auto-backup when connection is restored
+        tryAutoBackup();
+    });
+    window.addEventListener('offline', updateConnectionStatus);
+    
+    // Check if ZXing is already defined
+    if (typeof ZXing !== 'undefined') {
+        console.log("ZXing is already loaded from local file");
+    } else {
+        console.log("ZXing not detected, will attempt to load");
+        loadZXing()
+            .then(() => console.log("ZXing library loaded and ready"))
+            .catch(error => {
+                console.error("Error loading ZXing:", error);
+                alert("Failed to load QR code scanning library. Please check your files and try again.");
+            });
+    }
+    
+    // Load last backup session count
+    lastBackupSessions = parseInt(localStorage.getItem(LAST_BACKUP_SESSIONS_KEY) || '0');
+    
+    // Try auto-backup if online and there are new sessions
+    if (navigator.onLine) {
+        // Use setTimeout to ensure the app is fully loaded first
+        setTimeout(() => {
+            tryAutoBackup().then(success => {
+                if (success) {
+                    console.log("Initial auto-backup completed");
+                }
+            });
+        }, 2000);
+    }
+    
+    // Add beforeunload event listener to prevent accidental closing during active session
+    // This only handles scanner session - checklist module handles its own separately
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    // Initialize the checklist module if the elements exist
+    if (document.getElementById('startChecklistSessionBtn')) {
+        initializeChecklistModule();
+    }
 });
 //================================================================================================================================
 // Load ZXing from local file
@@ -2190,6 +2211,75 @@ locationInput.focus();
 }
 }
 //========================================================================================================== CAMERA & SCANNER FUNCTIONS ========//
+// Function to load haptic feedback setting
+function loadHapticFeedbackSetting() {
+    const savedSetting = localStorage.getItem(HAPTIC_ENABLED_KEY);
+    if (savedSetting !== null) {
+        hapticFeedbackEnabled = savedSetting === 'true';
+    }
+    console.log(`Haptic feedback ${hapticFeedbackEnabled ? 'enabled' : 'disabled'}`);
+}
+// Function to provide haptic feedback
+function provideHapticFeedback(intensity = 'medium') {
+    // Skip if haptic feedback is disabled
+    if (!hapticFeedbackEnabled) {
+        console.log('Haptic feedback is disabled');
+        return;
+    }
+    
+    try {
+        // Check if navigator.vibrate is supported (most Android devices)
+        if ('vibrate' in navigator) {
+            switch (intensity) {
+                case 'light':
+                    navigator.vibrate(10); // Short vibration
+                    break;
+                case 'medium':
+                    navigator.vibrate(25); // Medium vibration
+                    break;
+                case 'strong':
+                    navigator.vibrate([25, 30, 40]); // Pattern for stronger feedback
+                    break;
+                case 'success':
+                    navigator.vibrate([25, 50, 25]); // Success pattern
+                    break;
+                default:
+                    navigator.vibrate(25);
+            }
+            console.log(`Standard vibration feedback (${intensity}) provided`);
+        }
+        
+        // iOS-specific haptic feedback for PWAs
+        // This works on iOS 13+ on Safari when in standalone mode (PWA)
+        if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.selectionChange) {
+            // Trigger iOS haptic feedback
+            // This is a workaround that uses the text selection haptic
+            const selection = window.getSelection();
+            const range = document.createRange();
+            const tempElement = document.createElement('div');
+            tempElement.style.fontSize = '1px';
+            tempElement.style.position = 'absolute';
+            tempElement.style.left = '-9999px';
+            tempElement.innerText = ' ';
+            document.body.appendChild(tempElement);
+            
+            range.selectNodeContents(tempElement);
+            selection.removeAllRanges();
+            selection.addRange(range);
+            
+            // Trigger the haptic feedback
+            document.execCommand('copy'); 
+            
+            // Clean up
+            selection.removeAllRanges();
+            document.body.removeChild(tempElement);
+            
+            console.log('iOS haptic feedback attempted');
+        }
+    } catch (error) {
+        console.warn('Haptic feedback failed:', error);
+    }
+}
 // Improved camera initialization function
 async function startCamera() {
 try {
@@ -2509,43 +2599,51 @@ requestAnimationFrame(scanQRCode);
 }
 // Helper function to handle detected QR codes
 function handleQRCode(code) {
-if (!code.data || code.data.trim() === '') {
-return;
-}
-// Check if this code is already in our session
-const alreadyScannedInSession = activeSession.scans.some(scan => scan.content === code.data);
-// Check if this code was recently scanned (to prevent rapid duplicates)
-if (!lastScannedCodes.has(code.data) && !alreadyScannedInSession) {
-// Add to recent scans set and set timeout to remove
-lastScannedCodes.add(code.data);
-setTimeout(() => {
-lastScannedCodes.delete(code.data);
-}, 3000); // Prevent duplicate scans for 3 seconds
-// Highlight the QR code
-highlightQR(code.location);
-if (batchModeActive) {
-// Add to batch buffer
-if (!batchBuffer.has(code.data)) {
-batchBuffer.add(code.data);
-updateBatchIndicator();
-// Visual feedback
-updateScanStatus(`Added to batch: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
-addScanLogEntry(`Queued: ${code.data.substring(0, 15)}${code.data.length > 15 ? '...' : ''}`, 'info');
-// Play a shorter sound for batch additions
-playSuccessSound();
-}
-} else {
-// Process immediately if not in batch mode
-playSuccessSound();
-processScannedCode(code.data);
-}
-} else if (alreadyScannedInSession) {
-// Already in session
-updateScanStatus(`Already scanned: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
-} else {
-// Recent duplicate
-updateScanStatus(`Duplicate scan: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
-}
+    if (!code.data || code.data.trim() === '') {
+        return;
+    }
+    
+    // Check if this code is already in our session
+    const alreadyScannedInSession = activeSession.scans.some(scan => scan.content === code.data);
+    
+    // Check if this code was recently scanned (to prevent rapid duplicates)
+    if (!lastScannedCodes.has(code.data) && !alreadyScannedInSession) {
+        // Add to recent scans set and set timeout to remove
+        lastScannedCodes.add(code.data);
+        setTimeout(() => {
+            lastScannedCodes.delete(code.data);
+        }, 3000); // Prevent duplicate scans for 3 seconds
+        
+        // Highlight the QR code
+        highlightQR(code.location);
+        
+        if (batchModeActive) {
+            // Add to batch buffer
+            if (!batchBuffer.has(code.data)) {
+                batchBuffer.add(code.data);
+                updateBatchIndicator();
+                // Visual feedback
+                updateScanStatus(`Added to batch: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
+                addScanLogEntry(`Queued: ${code.data.substring(0, 15)}${code.data.length > 15 ? '...' : ''}`, 'info');
+                // Play a shorter sound for batch additions
+                playSuccessSound();
+                // Add light haptic feedback for batch additions
+                provideHapticFeedback('light');
+            }
+        } else {
+            // Process immediately if not in batch mode
+            playSuccessSound();
+            // Add medium haptic feedback for immediate scan
+            provideHapticFeedback('medium');
+            processScannedCode(code.data);
+        }
+    } else if (alreadyScannedInSession) {
+        // Already in session
+        updateScanStatus(`Already scanned: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
+    } else {
+        // Recent duplicate
+        updateScanStatus(`Duplicate scan: ${code.data.substring(0, 20)}${code.data.length > 20 ? '...' : ''}`);
+    }
 }
 // OPTIMIZATION: Simple detection of dark regions that might contain QR codes
 function detectPotentialQRRegions(imageData) {
@@ -2697,31 +2795,40 @@ indicator.style.backgroundColor = 'rgba(0,128,0,0.7)';
 }
 // Process all codes in the batch buffer
 function processBatch() {
-if (processingBatch || batchBuffer.size === 0) return;
-processingBatch = true;
-try {
-const batchSize = batchBuffer.size;
-// Show batch processing notification
-updateScanStatus(`Processing batch of ${batchSize} codes...`);
-// Process each code in the buffer
-batchBuffer.forEach(code => {
-processScannedCode(code);
-});
-// Clear the buffer after processing
-batchBuffer.clear();
-updateBatchIndicator();
-// Confirmation of batch processing
-updateScanStatus(`✅ Processed batch of ${batchSize} codes successfully`);
-addScanLogEntry(`Processed batch of ${batchSize} codes`, 'success');
-// Play a success sound for the whole batch
-playSuccessSound();
-} catch (error) {
-console.error("Error processing batch:", error);
-updateScanStatus(`Error processing batch: ${error.message}`);
-addScanLogEntry(`Batch processing error: ${error.message}`, 'error');
-} finally {
-processingBatch = false;
-}
+    if (processingBatch || batchBuffer.size === 0) return;
+    processingBatch = true;
+    
+    try {
+        const batchSize = batchBuffer.size;
+        // Show batch processing notification
+        updateScanStatus(`Processing batch of ${batchSize} codes...`);
+        
+        // Process each code in the buffer
+        batchBuffer.forEach(code => {
+            processScannedCode(code);
+        });
+        
+        // Clear the buffer after processing
+        batchBuffer.clear();
+        updateBatchIndicator();
+        
+        // Confirmation of batch processing
+        updateScanStatus(`✅ Processed batch of ${batchSize} codes successfully`);
+        addScanLogEntry(`Processed batch of ${batchSize} codes`, 'success');
+        
+        // Play a success sound for the whole batch
+        playSuccessSound();
+        
+        // Add stronger haptic feedback for successful batch processing
+        provideHapticFeedback('success');
+        
+    } catch (error) {
+        console.error("Error processing batch:", error);
+        updateScanStatus(`Error processing batch: ${error.message}`);
+        addScanLogEntry(`Batch processing error: ${error.message}`, 'error');
+    } finally {
+        processingBatch = false;
+    }
 }
 //========================================================================================================== QR DATA PROCESSING ========//
 // Process scanned QR code 
